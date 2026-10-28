@@ -1,0 +1,2097 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Colonist</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../shared/sg.css">
+<script src="../../shared/boot.js" data-libs="firebase"></script>
+<style>
+  :root{
+    --bg-navy:#0B1E33;
+    --bg-panel:#122A46;
+    --grid-line:#2E5C82;
+    --paper:#E9E4D8;
+    --paper-dim:#9FB3C8;
+    --accent:#E8A33D;
+    --accent-soft:#E8A33D33;
+    --danger:#E1604A;
+    --radius-sm:6px;
+    --radius-md:10px;
+    box-sizing:border-box;
+    padding-top:env(safe-area-inset-top,0px);
+    padding-bottom:env(safe-area-inset-bottom,0px);
+  }
+  body{
+    margin:0;
+    background:
+      linear-gradient(var(--grid-line) 1px, transparent 1px) 0 0/40px 40px,
+      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px) 0 0/40px 40px,
+      var(--bg-navy);
+    background-blend-mode:overlay, overlay, normal;
+    color:var(--paper);
+    font-family:'Inter', system-ui, sans-serif;
+    min-height:100%;
+    display:flex; flex-direction:column; align-items:center;
+    padding:24px 14px 40px;
+  }
+  .wrap{width:100%; max-width:1180px;}
+  header{
+    display:flex; align-items:baseline; justify-content:space-between;
+    flex-wrap:wrap; gap:8px 20px; margin-bottom:18px;
+    border-bottom:1px solid var(--grid-line); padding-bottom:12px;
+  }
+  h1{font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:clamp(26px,5vw,36px); margin:0; letter-spacing:0.5px;}
+  h1 a{color:inherit; text-decoration:none; cursor:pointer;}
+  h1 a:hover{opacity:0.85;}
+  .tagline{color:var(--paper-dim); font-size:13px; margin:0;}
+  main{display:flex; gap:22px; flex-wrap:wrap; align-items:flex-start; justify-content:center;}
+  .board-col{flex:2 1 520px; min-width:300px; max-width:680px;}
+  .board-wrap{
+    position:relative; width:100%; aspect-ratio:1/0.92; border-radius:var(--radius-md);
+    overflow:hidden; border:1px solid var(--grid-line); background:#08192c;
+  }
+  .board-wrap svg{width:100%; height:100%; display:block;}
+  .panel-col{flex:1 1 340px; min-width:290px; max-width:400px; display:flex; flex-direction:column; gap:14px;}
+  .card{background:var(--bg-panel); border:1px solid var(--grid-line); border-radius:var(--radius-md); padding:15px 17px;}
+  .home-btns,.count-btns,.preset-grid{display:flex; gap:10px; justify-content:center; flex-wrap:wrap;}
+  .menu-card{text-align:center; padding:30px 18px;}
+  .menu-card p{color:var(--paper-dim); font-size:13px; margin-bottom:18px;}
+  button{
+    font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:13px;
+    background:var(--accent); color:#1a1204; border:none; padding:9px 16px;
+    border-radius:var(--radius-sm); cursor:pointer;
+  }
+  button.danger{background:var(--danger); color:#2a0e08;}
+  button:focus-visible{outline:3px solid #fff; outline-offset:2px;}
+  input[type=text],input[type=number]{
+    font-family:'Inter',sans-serif; font-size:14px; padding:8px 11px; border-radius:var(--radius-sm);
+    border:1px solid var(--grid-line); background:#0F2540; color:var(--paper); width:100%;
+  }
+  .row-gap{display:flex; flex-direction:column; gap:8px; margin-top:12px;}
+  .inline-row{display:flex; gap:8px; align-items:center;}
+  .room-code{font-family:'Space Grotesk',sans-serif; font-size:26px; font-weight:700; letter-spacing:4px;
+    color:var(--accent); text-align:center; margin:4px 0;}
+  .seat-row{display:flex; align-items:center; gap:8px; padding:7px; border-radius:var(--radius-sm);
+    border:1px solid var(--grid-line); margin-bottom:6px; font-size:13px;}
+  .seat-row .swatch{width:12px;height:12px;border-radius:50%; flex:0 0 auto; border:1px solid rgba(255,255,255,0.3);}
+  .seat-row .you{color:var(--accent); font-size:11px; margin-left:auto;}
+  .preset-btn{background:#0F2540; color:var(--paper); border:1px solid var(--grid-line); font-size:12px; padding:8px 10px;
+    border-radius:var(--radius-sm); cursor:pointer; font-family:'Space Grotesk',sans-serif; font-weight:600;}
+  .preset-btn.chosen{background:var(--accent); color:#1a1204; border-color:var(--accent);}
+  /* Resource / hand display */
+  .hand-row{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:4px;}
+  .res-chip{
+    flex:1 1 60px; min-width:56px; display:flex; flex-direction:column; align-items:center; gap:2px;
+    background:#0F2540; border:1px solid var(--grid-line); border-radius:var(--radius-sm); padding:7px 4px;
+  }
+  .res-chip .ico{font-size:16px;}
+  .res-chip .amt{font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:15px;}
+  .res-chip .lbl{font-size:9px; color:var(--paper-dim); text-transform:uppercase; letter-spacing:0.4px;}
+  .res-chip.brick{border-color:#a85c3c;}
+  .res-chip.wood{border-color:#3f7a4e;}
+  .res-chip.wool{border-color:#8fbf6a;}
+  .res-chip.wheat{border-color:#d8b34a;}
+  .res-chip.ore{border-color:#8f96a3;}
+  .build-grid{display:grid; grid-template-columns:1fr 1fr; gap:8px;}
+  .build-btn{
+    display:flex; flex-direction:column; align-items:flex-start; gap:2px; text-align:left;
+    background:#0F2540; border:1px solid var(--grid-line); padding:9px 10px; border-radius:var(--radius-sm);
+    cursor:pointer; color:var(--paper);
+  }
+  .build-btn .bname{font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:12px;}
+  .build-btn .bcost{font-size:10px; color:var(--paper-dim);}
+  .build-btn.active{border-color:var(--accent); background:rgba(232,163,61,0.12);}
+  .build-btn:disabled{opacity:0.35; cursor:not-allowed;}
+  .players-list{display:flex; flex-direction:column; gap:8px;}
+  .player-row{display:flex; align-items:center; gap:8px; font-size:13px; padding:6px 8px; border-radius:var(--radius-sm);}
+  .player-row .swatch{width:11px;height:11px;border-radius:50%; flex:0 0 auto;}
+  .player-row .name{font-weight:500; flex:1;}
+  .player-row .vp{font-family:'Space Grotesk',sans-serif; font-weight:700; color:var(--accent); font-size:13px;}
+  .player-row .meta{font-size:10px; color:var(--paper-dim);}
+  .log,.trade-log{max-height:150px; overflow-y:auto; display:flex; flex-direction:column-reverse; gap:5px; font-size:12px; color:var(--paper-dim);}
+  .log div{border-left:2px solid var(--grid-line); padding-left:7px;}
+  .dev-card-row{display:flex; gap:6px; flex-wrap:wrap;}
+  .dev-card{
+    background:#0F2540; border:1px solid var(--grid-line); border-radius:var(--radius-sm);
+    padding:7px 9px; font-size:11px; cursor:pointer; min-width:78px; text-align:center;
+  }
+  .dev-card:hover{border-color:var(--accent);}
+  .dev-card.disabled{opacity:0.4; cursor:not-allowed;}
+  .dev-card .dname{font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:11px; display:block;}
+  .overlay{position:fixed; inset:0; background:rgba(6,14,24,0.82); display:flex; align-items:center;
+    justify-content:center; z-index:60; padding:20px;}
+  .overlay-card{background:var(--bg-panel); border:1px solid var(--accent); border-radius:var(--radius-md);
+    padding:28px 26px; text-align:center; max-width:420px; max-height:90vh; overflow-y:auto;}
+  .overlay-card h2{font-family:'Space Grotesk',sans-serif; font-size:22px; margin:0 0 8px;}
+  .overlay-card p{color:var(--paper-dim); font-size:13px; margin:0 0 16px;}
+  .turn-banner{display:flex; align-items:center; gap:8px; margin-bottom:8px;}
+  .turn-banner .swatch{width:14px;height:14px;border-radius:50%;}
+  .turn-banner .tname{font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:16px;}
+  .dice-display{display:flex; gap:8px; align-items:center; justify-content:center; margin:8px 0;}
+  .die{width:38px; height:38px; background:#F5F0E6; color:#1a1204; border-radius:7px; display:flex;
+    align-items:center; justify-content:center; font-family:'Space Grotesk',sans-serif; font-weight:800; font-size:18px;
+    box-shadow:0 3px 6px rgba(0,0,0,0.4);}
+  .chat-fab{position:fixed; right:20px; bottom:20px; z-index:70; width:54px; height:54px; border-radius:50%;
+    background:var(--accent); color:#1a1204; font-size:22px; display:flex; align-items:center; justify-content:center;
+    box-shadow:0 4px 14px rgba(0,0,0,0.4); border:none; cursor:pointer; padding:0;}
+  .chat-badge{position:absolute; top:-4px; right:-4px; background:var(--danger); color:#fff; font-size:11px; font-weight:700;
+    min-width:18px; height:18px; border-radius:9px; display:flex; align-items:center; justify-content:center; padding:0 4px;}
+  .chat-panel{position:fixed; right:20px; bottom:84px; z-index:70; width:min(300px,calc(100vw - 40px));
+    max-height:min(420px,calc(100vh - 140px)); background:var(--bg-panel); border:1px solid var(--grid-line);
+    border-radius:var(--radius-md); display:flex; flex-direction:column; box-shadow:0 8px 30px rgba(0,0,0,0.5); overflow:hidden;}
+  .chat-panel-header{display:flex; align-items:center; justify-content:space-between; padding:10px 13px;
+    border-bottom:1px solid var(--grid-line); font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:13px;}
+  .chat-close{background:transparent; border:none; color:var(--paper-dim); font-size:15px; padding:2px 6px; cursor:pointer;}
+  .chat-log{flex:1; padding:10px 13px; overflow-y:auto; font-size:12px; display:flex; flex-direction:column; gap:5px; max-height:220px;}
+  .chat-msg.move{color:var(--paper-dim); font-style:italic;}
+  .chat-msg.move.win{color:var(--accent); font-weight:700; font-style:normal;}
+  .chat-offer{border:1px solid var(--accent); border-radius:7px; padding:7px 8px; background:#0F2540;}
+  .chat-offer .offer-head{font-weight:700; margin-bottom:3px;}
+  .chat-offer .offer-to{color:var(--paper-dim); font-size:10.5px; margin-bottom:5px;}
+  .chat-offer .offer-status{color:var(--paper-dim); font-size:10.5px; margin-top:4px;}
+  .chat-offer .offer-btns{display:flex; gap:6px; margin-top:5px;}
+  .chat-offer .offer-btns button{font-size:11px; padding:4px 8px;}
+  .chat-input-row{display:flex; gap:6px; padding:9px 10px; border-top:1px solid var(--grid-line);}
+  select{
+    font-family:'Inter',sans-serif; font-size:13px; padding:7px 9px; border-radius:var(--radius-sm);
+    border:1px solid var(--grid-line); background:#0F2540; color:var(--paper); width:100%;
+  }
+  @media (max-width:900px){ main{flex-direction:column; align-items:stretch;} .board-col,.panel-col{max-width:100%;} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1><a id="homeLink" href="#">Colon<span>ist</span></a></h1>
+      <p class="tagline">Settle the island. Trade, build, and out-race your friends to 10 points.</p>
+    </div>
+    <button class="secondary" id="newGameBtn">New game</button>
+  </header>
+
+  <main>
+    <div class="board-col">
+      <div class="board-wrap" id="boardWrap">
+        <svg id="boardSvg" viewBox="0 0 640 590"></svg>
+      </div>
+    </div>
+
+    <div class="panel-col">
+
+      <div class="card menu-card" id="homeCard">
+        <h2>How do you want to play?</h2>
+        <div class="home-btns">
+          <button id="localBtn">Play on this device</button>
+          <button class="secondary" id="onlineBtn">Play online with friends</button>
+        </div>
+      </div>
+
+      <div class="card hidden" id="onlineSetupCard">
+        <h2>Play online</h2>
+        <div id="notConfiguredNote" class="hidden">
+          <p style="font-size:12px;color:var(--paper-dim);line-height:1.6;">
+            Online play isn't set up in this copy yet — paste your Firebase config near the top of the file.
+          </p>
+        </div>
+        <div id="configuredControls" class="hidden">
+          <div class="row-gap"><button id="createRoomBtn">Create a room</button></div>
+          <div class="row-gap">
+            <div class="inline-row">
+              <input type="text" id="joinCodeInput" placeholder="Room code" maxlength="6">
+              <button class="secondary" id="joinRoomBtn">Join</button>
+            </div>
+          </div>
+        </div>
+        <button class="secondary" id="backHomeBtn" style="margin-top:12px;">Back</button>
+      </div>
+
+      <div class="card hidden" id="lobbyCard">
+        <h2>Room lobby</h2>
+        <div class="room-code" id="lobbyCode"></div>
+        <div class="inline-row" style="margin-bottom:10px;">
+          <button class="secondary" id="copyLinkBtn" style="flex:1;">Copy invite link</button>
+        </div>
+        <div id="lobbySeats" class="row-gap"></div>
+        <button class="secondary" id="addSeatBtn" style="margin-top:6px;">Add a seat</button>
+        <button id="startOnlineBtn" class="hidden" style="margin-top:10px; width:100%;">Start game</button>
+      </div>
+
+      <div class="card hidden" id="chatCard"></div>
+
+      <div class="card hidden" id="turnCard">
+        <h2>Turn</h2>
+        <div class="turn-banner">
+          <div class="swatch" id="turnSwatch"></div>
+          <div class="tname" id="turnName"></div>
+        </div>
+        <p class="turn-instruction" id="turnInstruction" style="font-size:12px;color:var(--paper-dim);margin:0 0 8px;"></p>
+        <div class="dice-display hidden" id="diceDisplay">
+          <div class="die" id="die1">-</div>
+          <div class="die" id="die2">-</div>
+        </div>
+        <div id="turnActions" class="row-gap"></div>
+      </div>
+
+      <div class="card hidden" id="handCard">
+        <h2>Your resources</h2>
+        <div class="hand-row" id="handRow"></div>
+      </div>
+
+      <div class="card hidden" id="buildCard">
+        <h2>Build</h2>
+        <div class="build-grid" id="buildGrid"></div>
+        <div id="devCardHand" class="row-gap"></div>
+      </div>
+
+      <div class="card hidden" id="tradeCard">
+        <h2>Trade</h2>
+        <div id="tradeBody"></div>
+      </div>
+
+      <div class="card hidden" id="playersCard">
+        <h2>Settlers</h2>
+        <div class="players-list" id="playersList"></div>
+      </div>
+
+      <div class="card hidden" id="logCard">
+        <h2>Site log</h2>
+        <div class="log" id="log"></div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+
+<div class="overlay hidden" id="discardOverlay">
+  <div class="overlay-card">
+    <h2>Discard resources</h2>
+    <p id="discardPrompt"></p>
+    <div class="hand-row" id="discardHandRow"></div>
+    <button id="discardSubmitBtn" style="margin-top:14px;" disabled>Discard selected</button>
+  </div>
+</div>
+
+<div class="overlay hidden" id="stealOverlay">
+  <div class="overlay-card">
+    <h2>Steal a card</h2>
+    <p id="stealPrompt">Choose who to steal from:</p>
+    <div class="row-gap" id="stealOptions"></div>
+  </div>
+</div>
+
+<div class="overlay hidden" id="monopolyOverlay">
+  <div class="overlay-card">
+    <h2>Monopoly</h2>
+    <p>Choose a resource — everyone hands over all of it.</p>
+    <div class="row-gap" id="monopolyOptions"></div>
+  </div>
+</div>
+
+<div class="overlay hidden" id="inventionOverlay">
+  <div class="overlay-card">
+    <h2>Invention</h2>
+    <p>Pick 2 resource cards from the bank.</p>
+    <div class="hand-row" id="inventionOptions"></div>
+    <button id="inventionSubmitBtn" style="margin-top:14px;" disabled>Take cards</button>
+  </div>
+</div>
+
+<div class="overlay hidden" id="gameoverOverlay">
+  <div class="overlay-card">
+    <h2 id="gameoverTitle"></h2>
+    <p id="gameoverText"></p>
+    <button id="gameoverBtn">Play again</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  // ---- shared code (see ../../shared/sg.js) ----
+  const {escapeHtml, expireTs, genRoomCode} = SG;
+  const ROOMS = 'colonistRooms';
+  // The chat panel shows player messages (state.chat, appended with arrayUnion) together with
+  // the game's own entries (state.feed: move lines and trade offers), oldest first.
+  const chat = SG.createChat({
+    getState: ()=>state, getRoomRef: ()=>roomRef, isOnline: ()=>mode==='online',
+    get deviceId(){ return deviceId; },
+    mySeatName: ()=>{ const i = mySeatIndex(); return i>=0 ? (state.seatNames[i] || PLAYER_NAMES[i]) : null; },
+    canChat: ()=> mySeatIndex()>=0,
+    gifDefault: 'board game',
+    getMessages: ()=>{
+      if(!state) return [];
+      const all = (state.chat||[]).concat(state.feed||[]);
+      return all.map((m,i)=>[m,i]).sort((a,b)=> ((a[0].ts||0)-(b[0].ts||0)) || (a[1]-b[1])).map(x=>x[0]);
+    },
+    renderMessage: (m)=> m.type==='offer' ? renderOfferCard(m) : undefined,
+    preview: (m)=> m.type==='offer' ? chatPreview(m) : undefined,
+    onLogClick: (e)=> onChatLogClick(e)
+  });
+  const renderChatWidget = ()=> chat.render();
+
+  // ======================================================================
+  // CONSTANTS
+  // ======================================================================
+  const RESOURCES = ['brick','wood','wool','wheat','ore'];
+  const RES_ICON = {brick:'🧱', wood:'🪵', wool:'🐑', wheat:'🌾', ore:'⛰️'};
+  const RES_LABEL = {brick:'Brick', wood:'Wood', wool:'Wool', wheat:'Wheat', ore:'Ore'};
+  const TERRAIN_RESOURCE = {hills:'brick', forest:'wood', pasture:'wool', fields:'wheat', mountains:'ore', desert:null};
+  const TERRAIN_COLOR = {hills:'#B5551F', forest:'#2E6B3E', pasture:'#7FAE55', fields:'#D2A93B', mountains:'#78808C', desert:'#D8C79A'};
+  const TERRAIN_COUNTS = {hills:3, forest:4, pasture:4, fields:4, mountains:3, desert:1};
+  const NUMBER_TOKENS = [2,3,3,4,4,5,5,6,6,8,8,9,9,10,10,11,11,12];
+  const PLAYER_COLORS = ['#E1604A','#3FBF8F','#4A90D9','#E8A33D','#B98CE0','#E077B0'];
+  const PLAYER_NAMES = ['Player 1','Player 2','Player 3','Player 4','Player 5','Player 6'];
+  const MAX_PLAYERS = 4;
+  const DEV_DECK_SPEC = [
+    ...Array(14).fill('knight'),
+    ...Array(5).fill('vp'),
+    ...Array(2).fill('monopoly'),
+    ...Array(2).fill('roadbuilding'),
+    ...Array(2).fill('invention')
+  ];
+  const DEV_NAMES = {knight:'Knight', vp:'Victory Point', monopoly:'Monopoly', roadbuilding:'Road Building', invention:'Invention'};
+  const BUILD_COSTS = {
+    road: {brick:1, wood:1},
+    settlement: {brick:1, wood:1, wool:1, wheat:1},
+    city: {wheat:2, ore:3},
+    devcard: {wool:1, wheat:1, ore:1}
+  };
+  const PORT_TYPES = ['3:1','3:1','3:1','3:1','brick','wood','wool','wheat','ore'];
+
+  // ======================================================================
+  // HEX GEOMETRY
+  // ======================================================================
+  const HEX_SIZE = 52;
+  const BOARD_OFFSET_X = 320;
+  const BOARD_OFFSET_Y = 300;
+
+  function axialHexList(){
+    const list = [];
+    for(let q=-2; q<=2; q++){
+      for(let r=-2; r<=2; r++){
+        if(Math.abs(q+r)<=2){ list.push({q,r}); }
+      }
+    }
+    return list; // 19 hexes
+  }
+  function hexToPixel(q,r){
+    const x = HEX_SIZE * Math.sqrt(3) * (q + r/2) + BOARD_OFFSET_X;
+    const y = HEX_SIZE * 1.5 * r + BOARD_OFFSET_Y;
+    return {x,y};
+  }
+  function hexCorner(center, i){
+    const deg = 60*i - 30;
+    const rad = Math.PI/180 * deg;
+    return {x: center.x + HEX_SIZE*Math.cos(rad), y: center.y + HEX_SIZE*Math.sin(rad)};
+  }
+  function pixelKey(x,y){ return Math.round(x*2)/2 + ',' + Math.round(y*2)/2; }
+
+  function shuffle(arr){
+    const a = arr.slice();
+    for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; }
+    return a;
+  }
+
+  // Builds a fresh randomized board: terrain + numbers + vertices + edges + ports.
+  // Returns a plain-object graph (Firestore-friendly — no Maps/Sets).
+  function generateBoard(){
+    const hexList = axialHexList();
+    let terrainPool = [];
+    Object.keys(TERRAIN_COUNTS).forEach(t=>{ for(let i=0;i<TERRAIN_COUNTS[t];i++) terrainPool.push(t); });
+    terrainPool = shuffle(terrainPool);
+
+    const hexes = {};
+    hexList.forEach((hc,i)=>{
+      const id = 'h'+i;
+      hexes[id] = {id, q:hc.q, r:hc.r, terrain:terrainPool[i], resource:TERRAIN_RESOURCE[terrainPool[i]], number:null, vertexIds:[], edgeIds:[]};
+    });
+
+    // Assign numbers in a spiral (ring) order, skipping the desert — mirrors the
+    // rulebook's variable-setup instructions.
+    const ringOrder = spiralOrder(hexList);
+    let numberPool = shuffle(NUMBER_TOKENS);
+    ringOrder.forEach(hc=>{
+      const hex = Object.values(hexes).find(h=>h.q===hc.q && h.r===hc.r);
+      if(hex.terrain==='desert') return;
+      hex.number = numberPool.shift();
+    });
+
+    const vertexMap = {};
+    const edgeMap = {};
+    let vId=0;
+    Object.values(hexes).forEach(hex=>{
+      const center = hexToPixel(hex.q, hex.r);
+      const corners = [];
+      for(let i=0;i<6;i++){
+        const c = hexCorner(center, i);
+        const k = pixelKey(c.x, c.y);
+        let v = vertexMap[k];
+        if(!v){ v = {id:'v'+(vId++), x:c.x, y:c.y, hexIds:[], edgeIds:[], building:null}; vertexMap[k]=v; }
+        if(v.hexIds.indexOf(hex.id)===-1) v.hexIds.push(hex.id);
+        corners.push(v);
+      }
+      hex.vertexIds = corners.map(v=>v.id);
+      const edgeIds = [];
+      for(let i=0;i<6;i++){
+        const a = corners[i], b = corners[(i+1)%6];
+        const ek = [a.id,b.id].sort().join('_');
+        let e = edgeMap[ek];
+        if(!e){
+          e = {id:ek, v1:a.id, v2:b.id, mx:(a.x+b.x)/2, my:(a.y+b.y)/2, hexIds:[], road:null, portType:null};
+          edgeMap[ek] = e;
+          if(a.edgeIds.indexOf(ek)===-1) a.edgeIds.push(ek);
+          if(b.edgeIds.indexOf(ek)===-1) b.edgeIds.push(ek);
+        }
+        if(e.hexIds.indexOf(hex.id)===-1) e.hexIds.push(hex.id);
+        edgeIds.push(ek);
+      }
+      hex.edgeIds = edgeIds;
+    });
+
+    const vertices = {};
+    Object.values(vertexMap).forEach(v=>{ vertices[v.id]=v; });
+    const edges = {};
+    Object.values(edgeMap).forEach(e=>{ edges[e.id]=e; });
+
+    // Ports: place on a spread-out subset of the boundary (single-hex) edges.
+    const boundaryEdges = Object.values(edges).filter(e=>e.hexIds.length===1);
+    // Sort boundary edges by angle around the board center for even spacing.
+    boundaryEdges.sort((a,b)=>{
+      const angA = Math.atan2(a.my-BOARD_OFFSET_Y, a.mx-BOARD_OFFSET_X);
+      const angB = Math.atan2(b.my-BOARD_OFFSET_Y, b.mx-BOARD_OFFSET_X);
+      return angA - angB;
+    });
+    const step = boundaryEdges.length / PORT_TYPES.length;
+    const portTypesShuffled = shuffle(PORT_TYPES);
+    for(let i=0;i<PORT_TYPES.length;i++){
+      const idx = Math.floor(i*step);
+      const e = boundaryEdges[idx];
+      if(e) e.portType = portTypesShuffled[i];
+    }
+
+    const desertHex = Object.values(hexes).find(h=>h.terrain==='desert');
+
+    return {hexes, vertices, edges, robberHexId: desertHex.id};
+  }
+
+  // Ring-by-ring (spiral) traversal of the 19 hexes, used only to mirror the
+  // rulebook's "place discs counter-clockwise, skipping the desert" spirit —
+  // any deterministic full traversal works since numbers are pre-shuffled anyway.
+  function spiralOrder(hexList){
+    return hexList.slice().sort((a,b)=>{
+      const da = Math.max(Math.abs(a.q), Math.abs(a.r), Math.abs(a.q+a.r));
+      const db = Math.max(Math.abs(b.q), Math.abs(b.r), Math.abs(b.q+b.r));
+      if(da!==db) return da-db;
+      return Math.atan2(a.r,a.q) - Math.atan2(b.r,b.q);
+    });
+  }
+
+  // ======================================================================
+  // GAME/APP STATE
+  // ======================================================================
+  let mode = null;        // 'local' | 'online'
+  let state = null;       // shared game/lobby state
+  let roomCode = null;
+  let roomRef = null;
+  let deviceId = null;
+  const fbDb = SG.initFirestore();
+
+  function freshState(numPlayers){
+    return {
+      phase:'lobby', // lobby, setup, playing, gameover
+      numPlayers: numPlayers||0,
+      seats: new Array(MAX_PLAYERS).fill(null),
+      seatNames: new Array(MAX_PLAYERS).fill(''),
+      board: null,
+      bank: {brick:19, wood:19, wool:19, wheat:19, ore:19},
+      devDeck: [],
+      players: [], // {color,name,alive:true,hand:{},devCards:[],knightsPlayed:0,roadsBuilt,settlementsBuilt,citiesBuilt}
+      currentPlayer: 0,
+      setupRound: 1, // 1 or 2
+      setupOrder: [],
+      setupIndex: 0,
+      setupPendingSettlementVertex: null, // waiting for the connected road
+      turnSub: 'preRoll', // preRoll, main, discard, moveRobber, steal
+      lastRoll: null,
+      pendingDiscards: {}, // seatIndex(string) -> count still owed
+      robberHexId: null,
+      devCardPlayedThisTurn: false,
+      buildMode: null, // 'road'|'settlement'|'city'|null — awaiting a board click
+      longestRoadPlayer: null,
+      largestArmyPlayer: null,
+      winner: null,
+      log: [],
+      chat: [],   // player messages (text / gif), appended with arrayUnion
+      feed: []    // the game's own entries: move lines and trade offers
+    };
+  }
+
+// Everything except chat and the seat lists is written; those have their own safe writers
+  // (chat = arrayUnion, seats = transactions), so a move can never wipe a message or a seat.
+  const NEVER_COMMIT = ['chat','seats','seatNames'];
+  function commit(){
+    if(mode==='online' && roomRef) SG.writeState(roomRef, state, NEVER_COMMIT);
+    render();
+  }
+  // fresh lobby: seats are cleared, the chat history is kept
+  function commitReset(){
+    if(mode==='online' && roomRef) SG.writeState(roomRef, state, ['chat']);
+    render();
+  }
+  async function mutateRoom(keys, fn){
+    if(mode!=='online' || !roomRef){ const res = fn(state); render(); return res; }
+    return SG.mutateRoom(roomRef, keys, fn);
+  }
+  // add a game line to a state object (the live state, or a fresh copy inside a transaction)
+  function logInto(s, text, isWin){
+    if(!s.log) s.log=[];
+    s.log.push({text, win:!!isWin});
+    if(s.log.length>60) s.log = s.log.slice(-60);
+    if(!s.feed) s.feed=[];
+    s.feed.push({type:'move', text, win:!!isWin, ts:Date.now()});
+    if(s.feed.length>80) s.feed = s.feed.slice(-80);
+  }
+
+
+function addLog(text, isWin){ logInto(state, text, isWin); }
+
+  // ======================================================================
+  // LOCAL MODE
+  // ======================================================================
+  function startLocalGame(numPlayers){
+    mode = 'local';
+    state = freshState(numPlayers);
+    for(let i=0;i<numPlayers;i++){
+      state.seats[i] = 'local'+i;
+      state.seatNames[i] = PLAYER_NAMES[i];
+    }
+    beginSetupPhase();
+    commit();
+  }
+
+  // ======================================================================
+  // ONLINE MODE
+  // ======================================================================
+  function createRoom(){
+    if(!fbDb) return;
+    SG.sweepOldRooms(ROOMS);
+    roomCode = genRoomCode();
+    roomRef = fbDb.collection(ROOMS).doc(roomCode);
+    mode = 'online';
+    state = freshState(0);
+    state.numPlayers = 2; // default seat count, host can add up to 4
+    state.expireAt = expireTs();
+    roomRef.set(state).then(()=>{
+      subscribeRoom();
+      const url = new URL(location.href);
+      url.searchParams.set('room', roomCode);
+      history.replaceState(null,'',url.toString());
+    });
+  }
+  function joinRoom(code){
+    if(!fbDb || !code) return;
+    roomCode = code.trim().toUpperCase();
+    roomRef = fbDb.collection(ROOMS).doc(roomCode);
+    mode = 'online';
+    roomRef.get().then(snap=>{
+      if(!snap.exists){
+        alert('No room with that code. Check it and try again.');
+        roomRef=null; roomCode=null; mode=null; render();
+        return;
+      }
+      const url = new URL(location.href);
+      url.searchParams.set('room', roomCode);
+      history.replaceState(null,'',url.toString());
+      subscribeRoom();
+    });
+  }
+  function subscribeRoom(){
+    roomRef.onSnapshot(snap=>{
+      if(!snap.exists) return;
+      state = snap.data();
+      if(!state.chat) state.chat=[];
+      if(!state.feed) state.feed=[];
+      if(!state.log) state.log=[];
+      render();
+    }, err=>console.error('room subscription error', err));
+  }
+
+  function totalJoined(){ return state.seats.slice(0,state.numPlayers).filter(s=>s).length; }
+  function deviceAlreadySeated(){
+    if(!state) return -1;
+    return state.seats.indexOf(deviceId);
+  }
+  function mySeatIndex(){
+    if(mode!=='online' || !state) return -1;
+    return state.seats.indexOf(deviceId);
+  }
+async function claimSeat(idx){
+    if(!state || state.seats[idx]) return;
+    const res = await mutateRoom(['seats','seatNames'], s=>{
+      if(s.seats[idx]) return 'That seat was just taken.';
+      if(s.seats.indexOf(deviceId)!==-1) return "You're already seated in this room. One browser can only hold one seat.";
+      s.seats[idx] = deviceId;
+      s.seatNames[idx] = PLAYER_NAMES[idx];
+    });
+    if(typeof res==='string') alert(res);
+  }
+function renameSeat(idx){
+    if(!state || state.seats[idx]!==deviceId) return;
+    const nm = prompt('Your name?', state.seatNames[idx]||'');
+    if(nm===null) return;
+    const clean = nm.trim().slice(0,20);
+    if(!clean) return;
+    mutateRoom(['seatNames'], s=>{ if(s.seats[idx]!==deviceId) return true; s.seatNames[idx] = clean; });
+  }
+
+  function beginSetupPhase(){
+    state.board = generateBoard();
+    state.robberHexId = state.board.robberHexId;
+    state.bank = {brick:19, wood:19, wool:19, wheat:19, ore:19};
+    state.devDeck = shuffle(DEV_DECK_SPEC);
+    state.players = [];
+    for(let i=0;i<state.numPlayers;i++){
+      state.players.push({
+        color: PLAYER_COLORS[i],
+        name: state.seatNames[i] || PLAYER_NAMES[i],
+        hand: {brick:0,wood:0,wool:0,wheat:0,ore:0},
+        devCards: [], // {type, boughtTurn, revealed}
+        knightsPlayed: 0,
+        roadsBuilt: 0, settlementsBuilt: 0, citiesBuilt: 0
+      });
+    }
+    const order = [];
+    for(let i=0;i<state.numPlayers;i++) order.push(i);
+    for(let i=state.numPlayers-1;i>=0;i--) order.push(i);
+    state.setupOrder = order;
+    state.setupIndex = 0;
+    state.setupRound = 1;
+    state.setupPendingSettlementVertex = null;
+    state.currentPlayer = order[0];
+    state.phase = 'setup';
+    addLog('The island is settled. Placement begins.');
+  }
+
+  function startOnlineGame(){
+    beginSetupPhase();
+    commit();
+  }
+
+  // ======================================================================
+  // IDENTITY / TURN HELPERS
+  // ======================================================================
+  function mySeat(){
+    if(mode!=='online') return state ? state.currentPlayer : -1; // local hotseat: always "yours"
+    return mySeatIndex();
+  }
+  function isMyTurn(){
+    if(!state) return false;
+    if(mode!=='online') return true;
+    return mySeatIndex()===state.currentPlayer;
+  }
+  function activePlayer(){ return state.players[state.currentPlayer]; }
+  function cap(s){ return s ? s.charAt(0).toUpperCase()+s.slice(1) : ''; }
+  function hasResources(hand, cost){
+    return Object.keys(cost).every(r => (hand[r]||0) >= cost[r]);
+  }
+  function payResources(hand, cost){
+    Object.keys(cost).forEach(r=>{ hand[r] -= cost[r]; state.bank[r] += cost[r]; });
+  }
+  function giveResource(playerIdx, res, amt){
+    if(amt<=0) return;
+    state.players[playerIdx].hand[res] = (state.players[playerIdx].hand[res]||0) + amt;
+  }
+  function handTotal(hand){ return RESOURCES.reduce((s,r)=> s+(hand[r]||0), 0); }
+
+  // ======================================================================
+  // SETUP PHASE (snake draft: settlement then connected road, twice each)
+  // ======================================================================
+  function vertexFreeForSetup(vId){
+    const v = state.board.vertices[vId];
+    if(v.building) return false;
+    // distance rule: no neighboring vertex may have a building
+    const neighborIds = neighborVertexIds(vId);
+    return neighborIds.every(nid => !state.board.vertices[nid].building);
+  }
+  function neighborVertexIds(vId){
+    const v = state.board.vertices[vId];
+    return v.edgeIds.map(ek=>{
+      const e = state.board.edges[ek];
+      return e.v1===vId ? e.v2 : e.v1;
+    });
+  }
+  function onSetupVertexClick(vId){
+    if(!isMyTurn()) return;
+    if(state.setupPendingSettlementVertex) return; // must place the road first
+    if(!vertexFreeForSetup(vId)) return;
+    const p = state.currentPlayer;
+    state.board.vertices[vId].building = {player:p, type:'settlement'};
+    state.players[p].settlementsBuilt++;
+    state.setupPendingSettlementVertex = vId;
+    addLog(`${state.players[p].name} placed a settlement.`);
+    commit();
+  }
+  function onSetupEdgeClick(eId){
+    if(!isMyTurn()) return;
+    const pendingV = state.setupPendingSettlementVertex;
+    if(!pendingV) return;
+    const e = state.board.edges[eId];
+    if(e.road) return;
+    if(e.v1!==pendingV && e.v2!==pendingV) return; // must connect to the settlement just placed
+    const p = state.currentPlayer;
+    e.road = {player:p};
+    state.players[p].roadsBuilt++;
+    addLog(`${state.players[p].name} placed a road.`);
+
+    if(state.setupRound===2){
+      // collect resources for hexes adjacent to this SECOND settlement
+      const v = state.board.vertices[pendingV];
+      v.hexIds.forEach(hid=>{
+        const hex = state.board.hexes[hid];
+        if(hex.resource) giveResource(p, hex.resource, 1);
+      });
+    }
+
+    state.setupPendingSettlementVertex = null;
+    state.setupIndex++;
+    if(state.setupIndex >= state.setupOrder.length){
+      beginMainPhase();
+    } else {
+      state.currentPlayer = state.setupOrder[state.setupIndex];
+      state.setupRound = state.setupIndex < state.numPlayers ? 1 : 2;
+    }
+    commit();
+  }
+
+  function beginMainPhase(){
+    state.phase = 'playing';
+    state.currentPlayer = 0;
+    state.turnSub = 'preRoll';
+    state.devCardPlayedThisTurn = false;
+    addLog('Setup complete — the game begins!');
+  }
+
+  // ======================================================================
+  // TURN: ROLL DICE / PRODUCTION / ROBBER
+  // ======================================================================
+  function rollDice(){
+    if(!isMyTurn() || state.turnSub!=='preRoll') return;
+    const d1 = 1+Math.floor(Math.random()*6), d2 = 1+Math.floor(Math.random()*6);
+    const total = d1+d2;
+    state.lastRoll = {d1,d2,total};
+    addLog(`${activePlayer().name} rolled ${d1} + ${d2} = ${total}.`);
+    if(total===7){
+      resolveSeven();
+    } else {
+      collectProduction(total);
+      state.turnSub = 'main';
+    }
+    commit();
+  }
+
+  function collectProduction(roll){
+    const totalsByResource = {};
+    Object.values(state.board.hexes).forEach(hex=>{
+      if(hex.number!==roll || hex.id===state.robberHexId || !hex.resource) return;
+      hex.vertexIds.forEach(vId=>{
+        const v = state.board.vertices[vId];
+        if(!v.building) return;
+        const amt = v.building.type==='city' ? 2 : 1;
+        totalsByResource[hex.resource] = totalsByResource[hex.resource] || {};
+        totalsByResource[hex.resource][v.building.player] = (totalsByResource[hex.resource][v.building.player]||0) + amt;
+      });
+    });
+    Object.keys(totalsByResource).forEach(res=>{
+      const perPlayer = totalsByResource[res];
+      const totalNeeded = Object.values(perPlayer).reduce((a,b)=>a+b,0);
+      const available = state.bank[res];
+      if(totalNeeded<=available){
+        Object.keys(perPlayer).forEach(pid=>{
+          giveResource(parseInt(pid,10), res, perPlayer[pid]);
+          state.bank[res] -= perPlayer[pid];
+        });
+      } else {
+        const affected = Object.keys(perPlayer);
+        if(affected.length===1){
+          giveResource(parseInt(affected[0],10), res, available);
+          state.bank[res] = 0;
+        } // else: supply too short to be fair — no one gets any, per rulebook
+      }
+    });
+  }
+
+  function resolveSeven(){
+    state.pendingDiscards = {};
+    state.players.forEach((pl,idx)=>{
+      const total = handTotal(pl.hand);
+      if(total>7) state.pendingDiscards[idx] = Math.floor(total/2);
+    });
+    if(Object.keys(state.pendingDiscards).length===0){
+      state.turnSub = 'moveRobber';
+    } else {
+      state.turnSub = 'discard';
+    }
+  }
+
+  function submitDiscard(seatIdx, chosen){
+    // chosen: {res: count, ...}
+    const need = state.pendingDiscards[seatIdx];
+    if(need===undefined) return;
+    const totalChosen = Object.values(chosen).reduce((a,b)=>a+b,0);
+    if(totalChosen!==need) return;
+    const hand = state.players[seatIdx].hand;
+    if(!Object.keys(chosen).every(r => (hand[r]||0) >= chosen[r])) return;
+    Object.keys(chosen).forEach(r=>{ hand[r]-=chosen[r]; state.bank[r]+=chosen[r]; });
+    delete state.pendingDiscards[seatIdx];
+    addLog(`${state.players[seatIdx].name} discarded ${need} card${need===1?'':'s'}.`);
+    if(Object.keys(state.pendingDiscards).length===0){
+      state.turnSub = 'moveRobber';
+    }
+    commit();
+  }
+
+  function moveRobber(hexId){
+    if(!isMyTurn() || state.turnSub!=='moveRobber') return;
+    if(hexId===state.robberHexId) return;
+    state.robberHexId = hexId;
+    const hex = state.board.hexes[hexId];
+    const victims = new Set();
+    hex.vertexIds.forEach(vId=>{
+      const v = state.board.vertices[vId];
+      if(v.building && v.building.player!==state.currentPlayer) victims.add(v.building.player);
+    });
+    addLog(`${activePlayer().name} moved the robber.`);
+    if(victims.size===0){
+      state.turnSub = 'main';
+      commit();
+      return;
+    }
+    if(victims.size===1){
+      doSteal([...victims][0]);
+      return;
+    }
+    state.turnSub = 'steal';
+    state.stealCandidates = [...victims];
+    commit();
+  }
+  function doSteal(victimIdx){
+    const victim = state.players[victimIdx];
+    const pool = [];
+    RESOURCES.forEach(r=>{ for(let i=0;i<(victim.hand[r]||0);i++) pool.push(r); });
+    if(pool.length>0){
+      const picked = pool[Math.floor(Math.random()*pool.length)];
+      victim.hand[picked]--;
+      activePlayer().hand[picked] = (activePlayer().hand[picked]||0)+1;
+      addLog(`${activePlayer().name} stole a card from ${victim.name}.`);
+    }
+    state.turnSub = 'main';
+    state.stealCandidates = null;
+    commit();
+  }
+
+  // ======================================================================
+  // BUILDING
+  // ======================================================================
+  function edgeConnectsToPlayer(edgeId, playerIdx){
+    const e = state.board.edges[edgeId];
+    for(const vId of [e.v1, e.v2]){
+      const v = state.board.vertices[vId];
+      if(v.building && v.building.player===playerIdx) return true;
+      for(const otherEk of v.edgeIds){
+        if(otherEk===edgeId) continue;
+        const oe = state.board.edges[otherEk];
+        if(oe.road && oe.road.player===playerIdx) return true;
+      }
+    }
+    return false;
+  }
+  function canBuildRoad(edgeId, playerIdx){
+    const e = state.board.edges[edgeId];
+    if(e.road) return false;
+    return edgeConnectsToPlayer(edgeId, playerIdx);
+  }
+  function canBuildSettlement(vertexId, playerIdx){
+    const v = state.board.vertices[vertexId];
+    if(v.building) return false;
+    if(!neighborVertexIds(vertexId).every(nid=>!state.board.vertices[nid].building)) return false;
+    // must connect to one of the player's own roads
+    return v.edgeIds.some(ek=>{
+      const e = state.board.edges[ek];
+      return e.road && e.road.player===playerIdx;
+    });
+  }
+  function buildRoad(edgeId, free){
+    const p = state.currentPlayer;
+    if(!canBuildRoad(edgeId, p)) return false;
+    if(state.players[p].roadsBuilt>=15) return false;
+    if(!free){
+      if(!hasResources(state.players[p].hand, BUILD_COSTS.road)) return false;
+      payResources(state.players[p].hand, BUILD_COSTS.road);
+    }
+    state.board.edges[edgeId].road = {player:p};
+    state.players[p].roadsBuilt++;
+    addLog(`${state.players[p].name} built a road.`);
+    updateLongestRoadBonus();
+    checkWin();
+    return true;
+  }
+  function buildSettlement(vertexId){
+    const p = state.currentPlayer;
+    if(!canBuildSettlement(vertexId, p)) return false;
+    if(state.players[p].settlementsBuilt>=5) return false;
+    if(!hasResources(state.players[p].hand, BUILD_COSTS.settlement)) return false;
+    payResources(state.players[p].hand, BUILD_COSTS.settlement);
+    state.board.vertices[vertexId].building = {player:p, type:'settlement'};
+    state.players[p].settlementsBuilt++;
+    addLog(`${state.players[p].name} built a settlement.`);
+    updateLongestRoadBonus(); // a new settlement can break an opponent's route
+    checkWin();
+    return true;
+  }
+  function buildCity(vertexId){
+    const p = state.currentPlayer;
+    const v = state.board.vertices[vertexId];
+    if(!v.building || v.building.player!==p || v.building.type!=='settlement') return false;
+    if(state.players[p].citiesBuilt>=4) return false;
+    if(!hasResources(state.players[p].hand, BUILD_COSTS.city)) return false;
+    payResources(state.players[p].hand, BUILD_COSTS.city);
+    v.building = {player:p, type:'city'};
+    state.players[p].citiesBuilt++;
+    state.players[p].settlementsBuilt--;
+    addLog(`${state.players[p].name} upgraded a settlement to a city.`);
+    checkWin();
+    return true;
+  }
+  function buildDevCard(){
+    const p = state.currentPlayer;
+    if(state.devDeck.length===0) return false;
+    if(!hasResources(state.players[p].hand, BUILD_COSTS.devcard)) return false;
+    payResources(state.players[p].hand, BUILD_COSTS.devcard);
+    const type = state.devDeck.shift();
+    state.players[p].devCards.push({type, boughtTurn: state.turnCounter||0, revealed:false});
+    addLog(`${state.players[p].name} bought a development card.`);
+    checkWin();
+    return true;
+  }
+
+  // ======================================================================
+  // DEVELOPMENT CARDS — PLAY
+  // ======================================================================
+  function playKnight(cardIdx){
+    const p = state.currentPlayer;
+    const card = state.players[p].devCards[cardIdx];
+    if(!card || card.type!=='knight' || card.boughtTurn===(state.turnCounter||0)) return false;
+    if(state.devCardPlayedThisTurn) return false;
+    state.players[p].devCards.splice(cardIdx,1);
+    state.players[p].knightsPlayed++;
+    state.devCardPlayedThisTurn = true;
+    addLog(`${state.players[p].name} played a Knight.`);
+    updateLargestArmyBonus();
+    state.turnSub = 'moveRobber';
+    state.knightInProgress = true;
+    checkWin();
+    return true;
+  }
+  function playRoadBuilding(cardIdx){
+    const p = state.currentPlayer;
+    const card = state.players[p].devCards[cardIdx];
+    if(!card || card.type!=='roadbuilding' || card.boughtTurn===(state.turnCounter||0)) return false;
+    if(state.devCardPlayedThisTurn) return false;
+    state.players[p].devCards.splice(cardIdx,1);
+    state.devCardPlayedThisTurn = true;
+    state.buildMode = 'road';
+    state.freeRoadsRemaining = 2;
+    addLog(`${state.players[p].name} played Road Building — place 2 free roads.`);
+    return true;
+  }
+  function playMonopoly(cardIdx, resource){
+    const p = state.currentPlayer;
+    const card = state.players[p].devCards[cardIdx];
+    if(!card || card.type!=='monopoly' || card.boughtTurn===(state.turnCounter||0)) return false;
+    if(state.devCardPlayedThisTurn) return false;
+    state.players[p].devCards.splice(cardIdx,1);
+    state.devCardPlayedThisTurn = true;
+    let total = 0;
+    state.players.forEach((pl,idx)=>{
+      if(idx===p) return;
+      const amt = pl.hand[resource]||0;
+      total += amt;
+      pl.hand[resource] = 0;
+    });
+    state.players[p].hand[resource] = (state.players[p].hand[resource]||0) + total;
+    addLog(`${state.players[p].name} played Monopoly on ${RES_LABEL[resource]} and collected ${total} card${total===1?'':'s'}.`);
+    checkWin();
+    return true;
+  }
+  function playInvention(cardIdx, res1, res2){
+    const p = state.currentPlayer;
+    const card = state.players[p].devCards[cardIdx];
+    if(!card || card.type!=='invention' || card.boughtTurn===(state.turnCounter||0)) return false;
+    if(state.devCardPlayedThisTurn) return false;
+    if(state.bank[res1]<=0 || (res1===res2 && state.bank[res1]<2) || (res1!==res2 && state.bank[res2]<=0)) return false;
+    state.players[p].devCards.splice(cardIdx,1);
+    state.devCardPlayedThisTurn = true;
+    state.bank[res1]--; giveResource(p,res1,1);
+    state.bank[res2]--; giveResource(p,res2,1);
+    addLog(`${state.players[p].name} played Invention.`);
+    checkWin();
+    return true;
+  }
+
+  // ======================================================================
+  // LONGEST ROAD / LARGEST ARMY
+  // ======================================================================
+  function computeLongestRoad(playerIdx){
+    const edges = state.board.edges, vertices = state.board.vertices;
+    const startSet = new Set();
+    Object.values(edges).forEach(e=>{ if(e.road && e.road.player===playerIdx){ startSet.add(e.v1); startSet.add(e.v2); } });
+    let best = 0;
+    function dfs(vId, visited){
+      let localBest = 0;
+      const v = vertices[vId];
+      for(const ek of v.edgeIds){
+        if(visited.has(ek)) continue;
+        const e = edges[ek];
+        if(!e.road || e.road.player!==playerIdx) continue;
+        const nextId = e.v1===vId ? e.v2 : e.v1;
+        const nextV = vertices[nextId];
+        if(nextV.building && nextV.building.player!==playerIdx) continue;
+        visited.add(ek);
+        const len = 1 + dfs(nextId, visited);
+        visited.delete(ek);
+        if(len>localBest) localBest = len;
+      }
+      return localBest;
+    }
+    startSet.forEach(vId=>{ const len = dfs(vId, new Set()); if(len>best) best=len; });
+    return best;
+  }
+  function updateLongestRoadBonus(){
+    const lengths = state.players.map((pl,idx)=>computeLongestRoad(idx));
+    const holder = state.longestRoadPlayer;
+    const holderLen = (holder!==null && holder!==undefined) ? lengths[holder] : 0;
+    if(holder!==null && holder!==undefined && holderLen<5){ state.longestRoadPlayer=null; }
+    const baseline = (state.longestRoadPlayer!==null && state.longestRoadPlayer!==undefined) ? lengths[state.longestRoadPlayer] : 0;
+    const candidates = [];
+    lengths.forEach((len,idx)=>{ if(len>=5 && len>baseline) candidates.push(idx); });
+    if(candidates.length){
+      candidates.sort((a,b)=>lengths[b]-lengths[a]);
+      if(candidates.length===1 || lengths[candidates[0]]>lengths[candidates[1]]){
+        if(state.longestRoadPlayer!==candidates[0]) addLog(`${state.players[candidates[0]].name} takes the Longest Route bonus.`);
+        state.longestRoadPlayer = candidates[0];
+      }
+    }
+  }
+  function updateLargestArmyBonus(){
+    const holder = state.largestArmyPlayer;
+    const holderCount = (holder!==null && holder!==undefined) ? state.players[holder].knightsPlayed : 0;
+    const candidates = [];
+    state.players.forEach((pl,idx)=>{ if(pl.knightsPlayed>=3 && pl.knightsPlayed>holderCount) candidates.push(idx); });
+    if(candidates.length){
+      candidates.sort((a,b)=>state.players[b].knightsPlayed-state.players[a].knightsPlayed);
+      if(candidates.length===1 || state.players[candidates[0]].knightsPlayed>state.players[candidates[1]].knightsPlayed){
+        if(state.largestArmyPlayer!==candidates[0]) addLog(`${state.players[candidates[0]].name} takes the Largest Army bonus.`);
+        state.largestArmyPlayer = candidates[0];
+      }
+    }
+  }
+
+  // ======================================================================
+  // TRADING
+  // ======================================================================
+  function tradeWithBank(giveRes, wantRes, rate){
+    const p = state.currentPlayer;
+    const hand = state.players[p].hand;
+    if((hand[giveRes]||0) < rate) return false;
+    if(state.bank[wantRes]<=0) return false;
+    hand[giveRes] -= rate;
+    state.bank[giveRes] += rate;
+    hand[wantRes] = (hand[wantRes]||0)+1;
+    state.bank[wantRes]--;
+    addLog(`${state.players[p].name} traded ${rate} ${RES_LABEL[giveRes]} for 1 ${RES_LABEL[wantRes]}.`);
+    commit();
+    return true;
+  }
+  function playerPortRates(playerIdx){
+    const rates = {}; // resource -> best rate (default 4)
+    RESOURCES.forEach(r=>rates[r]=4);
+    let hasGeneric3 = false;
+    Object.values(state.board.edges).forEach(e=>{
+      if(!e.portType) return;
+      const v1 = state.board.vertices[e.v1], v2 = state.board.vertices[e.v2];
+      const owns = (v1.building && v1.building.player===playerIdx) || (v2.building && v2.building.player===playerIdx);
+      if(!owns) return;
+      if(e.portType==='3:1') hasGeneric3 = true;
+      else rates[e.portType] = 2;
+    });
+    if(hasGeneric3) RESOURCES.forEach(r=>{ if(rates[r]>3) rates[r]=3; });
+    return rates;
+  }
+
+  function findOffer(id){
+    return (state.feed||[]).find(m=>m.type==='offer' && m.id===id);
+  }
+  function seatName(idx){
+    if(state.players && state.players[idx]) return state.players[idx].name;
+    return state.seatNames && state.seatNames[idx] || PLAYER_NAMES[idx] || ('Player '+(idx+1));
+  }
+  // Seats still eligible to respond to an open offer: not the proposer, targeted
+  // (or the offer is open to everyone), and hasn't already declined it.
+  function eligibleRecipientSeats(off){ return eligibleRecipientSeatsIn(state, off); }
+  function eligibleRecipientSeatsIn(st, off){
+    const out = [];
+    for(let s=0; s<st.numPlayers; s++){
+      if(s===off.fromSeat) continue;
+      if(off.recipients && off.recipients.length>0 && off.recipients.indexOf(s)===-1) continue;
+      if(off.declinedBy && off.declinedBy.indexOf(s)!==-1) continue;
+      out.push(s);
+    }
+    return out;
+  }
+function offerTrade(give, want, recipients){
+    const seat = mode==='online' ? mySeatIndex() : state.currentPlayer;
+    if(seat<0 || !state.players[seat]) return;
+    const off = {
+      type:'offer',
+      id: 'o'+Date.now().toString(36)+Math.random().toString(36).slice(2,7),
+      from: deviceId,
+      fromSeat: seat,
+      fromName: state.players[seat].name,
+      give, want,
+      recipients: recipients||[], // [] = open to everyone
+      status: 'open', // open | accepted | cancelled
+      acceptedBy: null,
+      declinedBy: [],
+      ts: Date.now()
+    };
+    mutateRoom(['feed'], s=>{
+      if(!s.feed) s.feed=[];
+      s.feed.push(off);
+      if(s.feed.length>80) s.feed = s.feed.slice(-80);
+    });
+  }
+  // Trade responses run as transactions so two people answering at once can't both win.
+  async function acceptOffer(offerId, responderSeat){
+    const res = await mutateRoom(['players','feed','log'], s=>{
+      const off = (s.feed||[]).find(m=>m.type==='offer' && m.id===offerId);
+      if(!off || off.status!=='open') return true;
+      if(eligibleRecipientSeatsIn(s, off).indexOf(responderSeat)===-1) return true;
+      const offerer = s.players[off.fromSeat];
+      const responder = s.players[responderSeat];
+      if(!offerer || !responder) return true;
+      if(!hasResources(offerer.hand, off.give) || !hasResources(responder.hand, off.want))
+        return "One side no longer has enough resources for this trade.";
+      Object.keys(off.give).forEach(r=>{ offerer.hand[r]-=off.give[r]; responder.hand[r]=(responder.hand[r]||0)+off.give[r]; });
+      Object.keys(off.want).forEach(r=>{ responder.hand[r]-=off.want[r]; offerer.hand[r]=(offerer.hand[r]||0)+off.want[r]; });
+      off.status = 'accepted';
+      off.acceptedBy = responderSeat;
+      logInto(s, `${responder.name} accepted a trade with ${offerer.name}.`);
+    });
+    if(typeof res==='string') alert(res);
+  }
+  function declineOffer(offerId, responderSeat){
+    mutateRoom(['feed'], s=>{
+      const off = (s.feed||[]).find(m=>m.type==='offer' && m.id===offerId);
+      if(!off || off.status!=='open') return true;
+      if(!off.declinedBy) off.declinedBy=[];
+      if(off.declinedBy.indexOf(responderSeat)===-1) off.declinedBy.push(responderSeat);
+    });
+  }
+  function cancelOffer(offerId){
+    mutateRoom(['feed'], s=>{
+      const off = (s.feed||[]).find(m=>m.type==='offer' && m.id===offerId);
+      if(!off || off.status!=='open') return true;
+      off.status = 'cancelled';
+    });
+  }
+
+  // ======================================================================
+  // WIN CHECK
+  // ======================================================================
+  function playerVP(playerIdx){
+    const pl = state.players[playerIdx];
+    let vp = pl.settlementsBuilt + pl.citiesBuilt*2;
+    if(state.longestRoadPlayer===playerIdx) vp += 2;
+    if(state.largestArmyPlayer===playerIdx) vp += 2;
+    pl.devCards.forEach(c=>{ if(c.type==='vp') vp += 1; });
+    return vp;
+  }
+  function checkWin(){
+    const p = state.currentPlayer;
+    if(playerVP(p) >= 10){
+      state.players[p].devCards.forEach(c=>{ if(c.type==='vp') c.revealed=true; });
+      state.phase = 'gameover';
+      state.winner = p;
+      addLog(`${state.players[p].name} reaches 10 points and wins!`, true);
+    }
+  }
+
+  function endTurn(){
+    if(!isMyTurn() || state.phase!=='playing') return;
+    state.buildMode = null;
+    state.devCardPlayedThisTurn = false;
+    (state.feed||[]).forEach(m=>{
+      if(m.type==='offer' && m.status==='open' && m.fromSeat===state.currentPlayer) m.status='cancelled';
+    });
+    state.turnCounter = (state.turnCounter||0)+1;
+    state.currentPlayer = (state.currentPlayer+1) % state.numPlayers;
+    state.turnSub = 'preRoll';
+    state.lastRoll = null;
+    commit();
+  }
+
+  // ======================================================================
+  // BOARD INTERACTION (click resolution)
+  // ======================================================================
+  function getClickableVertices(){
+    const set = new Set();
+    if(!state || !state.board || !isMyTurn()) return set;
+    if(state.phase==='setup'){
+      if(!state.setupPendingSettlementVertex){
+        Object.keys(state.board.vertices).forEach(vId=>{ if(vertexFreeForSetup(vId)) set.add(vId); });
+      }
+    } else if(state.phase==='playing' && state.turnSub==='main'){
+      if(state.buildMode==='settlement'){
+        Object.keys(state.board.vertices).forEach(vId=>{ if(canBuildSettlement(vId, state.currentPlayer)) set.add(vId); });
+      } else if(state.buildMode==='city'){
+        Object.keys(state.board.vertices).forEach(vId=>{
+          const v = state.board.vertices[vId];
+          if(v.building && v.building.type==='settlement' && v.building.player===state.currentPlayer) set.add(vId);
+        });
+      }
+    }
+    return set;
+  }
+  function getClickableEdges(){
+    const set = new Set();
+    if(!state || !state.board || !isMyTurn()) return set;
+    if(state.phase==='setup'){
+      if(state.setupPendingSettlementVertex){
+        const v = state.board.vertices[state.setupPendingSettlementVertex];
+        v.edgeIds.forEach(ek=>{ if(!state.board.edges[ek].road) set.add(ek); });
+      }
+    } else if(state.phase==='playing' && state.turnSub==='main' && state.buildMode==='road'){
+      Object.keys(state.board.edges).forEach(ek=>{ if(canBuildRoad(ek, state.currentPlayer)) set.add(ek); });
+    }
+    return set;
+  }
+  function getClickableHexes(){
+    const set = new Set();
+    if(!state || !state.board || !isMyTurn()) return set;
+    if(state.phase==='playing' && state.turnSub==='moveRobber'){
+      Object.keys(state.board.hexes).forEach(hid=>{ if(hid!==state.robberHexId) set.add(hid); });
+    }
+    return set;
+  }
+  function onVertexClick(vId){
+    if(state.phase==='setup'){ onSetupVertexClick(vId); return; }
+    if(state.phase==='playing' && state.buildMode==='settlement'){
+      if(buildSettlement(vId)){ state.buildMode=null; commit(); }
+    } else if(state.phase==='playing' && state.buildMode==='city'){
+      if(buildCity(vId)){ state.buildMode=null; commit(); }
+    }
+  }
+  function onEdgeClick(eId){
+    if(state.phase==='setup'){ onSetupEdgeClick(eId); return; }
+    if(state.phase==='playing' && state.buildMode==='road'){
+      const free = !!state.freeRoadsRemaining;
+      if(buildRoad(eId, free)){
+        if(free){
+          state.freeRoadsRemaining--;
+          if(state.freeRoadsRemaining<=0){ state.buildMode=null; state.freeRoadsRemaining=null; }
+        } else {
+          state.buildMode = null;
+        }
+        commit();
+      }
+    }
+  }
+  function onHexClick(hexId){
+    if(state.phase==='playing' && state.turnSub==='moveRobber'){
+      state.knightInProgress = null;
+      moveRobber(hexId);
+    }
+  }
+
+  // ======================================================================
+  // RENDER
+  // ======================================================================
+  function svgEl(tag, attrs){
+    const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+    Object.keys(attrs).forEach(k=> el.setAttribute(k, attrs[k]));
+    return el;
+  }
+
+  const homeCard = document.getElementById('homeCard');
+  const onlineSetupCard = document.getElementById('onlineSetupCard');
+  const lobbyCard = document.getElementById('lobbyCard');
+  const turnCard = document.getElementById('turnCard');
+  const handCard = document.getElementById('handCard');
+  const buildCard = document.getElementById('buildCard');
+  const tradeCard = document.getElementById('tradeCard');
+  const playersCard = document.getElementById('playersCard');
+  const logCard = document.getElementById('logCard');
+  const chatCardEl = document.getElementById('chatCard');
+
+  function safeRun(fn, label){ try{ fn(); }catch(err){ console.error(`render step "${label}" failed:`, err); } }
+
+  function hideAllCards(){
+    [homeCard,onlineSetupCard,lobbyCard,turnCard,handCard,buildCard,tradeCard,playersCard,logCard,chatCardEl]
+      .forEach(el=>el.classList.add('hidden'));
+  }
+
+  function render(){
+    if(!mode){
+      hideAllCards(); homeCard.classList.remove('hidden');
+      safeRun(renderBoard, 'board');
+      safeRun(renderChatWidget, 'chatWidget');
+      return;
+    }
+    if(mode==='online' && !state){
+      hideAllCards(); onlineSetupCard.classList.remove('hidden');
+      safeRun(renderOnlineSetup, 'onlineSetup');
+      safeRun(renderBoard, 'board');
+      safeRun(renderChatWidget, 'chatWidget');
+      return;
+    }
+    if(!state) return;
+
+    if(state.phase==='lobby'){
+      hideAllCards();
+      lobbyCard.classList.remove('hidden');
+      if(mode==='online') chatCardWrap(true);
+      safeRun(renderLobby, 'lobby');
+      safeRun(renderBoard, 'board');
+      safeRun(renderChatWidget, 'chatWidget');
+      return;
+    }
+
+    hideAllCards();
+    turnCard.classList.remove('hidden');
+    handCard.classList.remove('hidden');
+    buildCard.classList.remove('hidden');
+    tradeCard.classList.remove('hidden');
+    playersCard.classList.remove('hidden');
+    logCard.classList.remove('hidden');
+    if(mode==='online') chatCardWrap(true);
+
+    safeRun(renderBoard, 'board');
+    safeRun(renderTurnCard, 'turnCard');
+    safeRun(renderHand, 'hand');
+    safeRun(renderBuildCard, 'buildCard');
+    safeRun(renderTradeCard, 'tradeCard');
+    safeRun(renderPlayers, 'players');
+    safeRun(renderLog, 'log');
+    safeRun(renderChatWidget, 'chatWidget');
+    safeRun(renderOverlays, 'overlays');
+  }
+  function chatCardWrap(){ /* placeholder kept for readability; chat lives in the floating widget */ }
+
+  function renderBoard(){
+    const svg = document.getElementById('boardSvg');
+    svg.innerHTML = '';
+    if(!state || !state.board) return;
+    const board = state.board;
+
+    Object.values(board.hexes).forEach(hex=>{
+      const center = hexToPixel(hex.q, hex.r);
+      const pts = [];
+      for(let i=0;i<6;i++){ const c=hexCorner(center,i); pts.push(c.x+','+c.y); }
+      svg.appendChild(svgEl('polygon', {points:pts.join(' '), fill:TERRAIN_COLOR[hex.terrain], stroke:'#0B1E33', 'stroke-width':2}));
+      if(hex.number){
+        const isRed = hex.number===6 || hex.number===8;
+        svg.appendChild(svgEl('circle', {cx:center.x, cy:center.y, r:16, fill:'#F5F0E6', stroke:'#0B1E33', 'stroke-width':1.3}));
+        const text = svgEl('text', {x:center.x, y:center.y+5.5, 'text-anchor':'middle', 'font-family':'Space Grotesk, sans-serif', 'font-weight':800, 'font-size':15, fill: isRed?'#C0392B':'#1a1204'});
+        text.textContent = hex.number;
+        svg.appendChild(text);
+      }
+      if(hex.id===state.robberHexId){
+        svg.appendChild(svgEl('ellipse', {cx:center.x, cy:center.y-25, rx:8, ry:10, fill:'#3a3f47', stroke:'#111', 'stroke-width':1.3}));
+      }
+    });
+
+    Object.values(board.edges).forEach(e=>{
+      if(!e.portType) return;
+      const label = e.portType==='3:1' ? '3:1' : RES_ICON[e.portType]+'2:1';
+      const dirX = e.mx - BOARD_OFFSET_X, dirY = e.my - BOARD_OFFSET_Y;
+      const len = Math.hypot(dirX,dirY)||1;
+      const px = e.mx + dirX/len*18, py = e.my + dirY/len*18;
+      svg.appendChild(svgEl('rect', {x:px-17, y:py-9, width:34, height:18, rx:4, fill:'#0F2540', stroke:'#2E5C82'}));
+      const text = svgEl('text', {x:px, y:py+4, 'text-anchor':'middle', 'font-size':9, fill:'#E9E4D8', 'font-family':'Inter, sans-serif'});
+      text.textContent = label;
+      svg.appendChild(text);
+    });
+
+    Object.values(board.edges).forEach(e=>{
+      if(!e.road) return;
+      const v1=board.vertices[e.v1], v2=board.vertices[e.v2];
+      svg.appendChild(svgEl('line', {x1:v1.x,y1:v1.y,x2:v2.x,y2:v2.y, stroke: state.players[e.road.player].color, 'stroke-width':6, 'stroke-linecap':'round'}));
+    });
+
+    Object.values(board.vertices).forEach(v=>{
+      if(!v.building) return;
+      const color = state.players[v.building.player].color;
+      if(v.building.type==='settlement'){
+        svg.appendChild(svgEl('rect', {x:v.x-6.5, y:v.y-6.5, width:13, height:13, fill:color, stroke:'#0B1E33', 'stroke-width':1.4, transform:`rotate(45 ${v.x} ${v.y})`}));
+      } else {
+        svg.appendChild(svgEl('rect', {x:v.x-10, y:v.y-7, width:20, height:14, rx:2, fill:color, stroke:'#0B1E33', 'stroke-width':1.4}));
+        svg.appendChild(svgEl('rect', {x:v.x-5.5, y:v.y-13, width:11, height:7, fill:color, stroke:'#0B1E33', 'stroke-width':1.4}));
+      }
+    });
+
+    const cv = getClickableVertices(), ce = getClickableEdges(), ch = getClickableHexes();
+    Object.values(board.edges).forEach(e=>{
+      if(!ce.has(e.id)) return;
+      const v1=board.vertices[e.v1], v2=board.vertices[e.v2];
+      const hit = svgEl('line', {x1:v1.x,y1:v1.y,x2:v2.x,y2:v2.y, stroke:'#34D399', 'stroke-width':9, 'stroke-linecap':'round', opacity:0.6, cursor:'pointer'});
+      hit.addEventListener('click', ()=>onEdgeClick(e.id));
+      svg.appendChild(hit);
+    });
+    Object.values(board.vertices).forEach(v=>{
+      if(!cv.has(v.id)) return;
+      const hit = svgEl('circle', {cx:v.x, cy:v.y, r:10, fill:'#34D399', opacity:0.75, cursor:'pointer', stroke:'#fff', 'stroke-width':1.4});
+      hit.addEventListener('click', ()=>onVertexClick(v.id));
+      svg.appendChild(hit);
+    });
+    Object.values(board.hexes).forEach(hex=>{
+      if(!ch.has(hex.id)) return;
+      const center = hexToPixel(hex.q,hex.r);
+      const hit = svgEl('circle', {cx:center.x, cy:center.y, r:24, fill:'rgba(225,96,74,0.15)', stroke:'#E1604A', 'stroke-width':2.5, cursor:'pointer', 'stroke-dasharray':'5,4'});
+      hit.addEventListener('click', ()=>onHexClick(hex.id));
+      svg.appendChild(hit);
+    });
+  }
+
+  function renderOnlineSetup(){
+    const configured = document.getElementById('configuredControls');
+    const notConfigured = document.getElementById('notConfiguredNote');
+    if(FIREBASE_CONFIGURED){ configured.classList.remove('hidden'); notConfigured.classList.add('hidden'); }
+    else { configured.classList.add('hidden'); notConfigured.classList.remove('hidden'); }
+  }
+
+  function renderLobby(){
+    document.getElementById('lobbyCode').textContent = roomCode || '(local)';
+    const seatsEl = document.getElementById('lobbySeats');
+    seatsEl.innerHTML = '';
+    const already = deviceAlreadySeated();
+    for(let i=0;i<state.numPlayers;i++){
+      const row = document.createElement('div');
+      row.className='seat-row';
+      const sw = document.createElement('div'); sw.className='swatch'; sw.style.background=PLAYER_COLORS[i];
+      row.appendChild(sw);
+      if(state.seats[i]){
+        const nm=document.createElement('div'); nm.textContent=state.seatNames[i]; nm.style.flex='1';
+        row.appendChild(nm);
+        if(state.seats[i]===deviceId){
+          const rename=document.createElement('button'); rename.className='secondary'; rename.textContent='✎';
+          rename.style.cssText='padding:3px 7px;'; rename.addEventListener('click', ()=>renameSeat(i));
+          row.appendChild(rename);
+          const you=document.createElement('div'); you.className='you'; you.textContent='you'; row.appendChild(you);
+        }
+      } else {
+        const label=document.createElement('div'); label.textContent=`Seat ${i+1} — open`; label.style.flex='1';
+        row.appendChild(label);
+        const btn=document.createElement('button'); btn.className='secondary'; btn.textContent='Join';
+        if(already>=0){ btn.disabled=true; btn.textContent='Unavailable'; }
+        else btn.addEventListener('click', ()=>claimSeat(i));
+        row.appendChild(btn);
+      }
+      seatsEl.appendChild(row);
+    }
+    const addBtn = document.getElementById('addSeatBtn');
+    addBtn.classList.toggle('hidden', state.numPlayers>=MAX_PLAYERS);
+    addBtn.onclick = ()=>{ if(state.numPlayers<MAX_PLAYERS){ state.numPlayers++; commit(); } };
+
+    const startBtn = document.getElementById('startOnlineBtn');
+    const ready = totalJoined()===state.numPlayers && state.numPlayers>=2;
+    startBtn.classList.toggle('hidden', !ready);
+    startBtn.onclick = startOnlineGame;
+  }
+
+  function renderTurnCard(){
+    const swatch = document.getElementById('turnSwatch');
+    const name = document.getElementById('turnName');
+    const instr = document.getElementById('turnInstruction');
+    const diceBox = document.getElementById('diceDisplay');
+    const actions = document.getElementById('turnActions');
+    actions.innerHTML = '';
+
+    if(state.phase==='gameover'){
+      swatch.style.background = state.players[state.winner].color;
+      name.textContent = state.players[state.winner].name + ' wins!';
+      instr.textContent = 'Game over.';
+      diceBox.classList.add('hidden');
+      return;
+    }
+
+    const p = state.currentPlayer;
+    swatch.style.background = state.players[p].color;
+    name.textContent = state.players[p].name;
+    const myTurn = isMyTurn();
+
+    if(state.phase==='setup'){
+      instr.textContent = myTurn
+        ? (state.setupPendingSettlementVertex ? 'Place a road connected to that settlement.' : 'Place a settlement on an open intersection.')
+        : `Waiting for ${state.players[p].name}.`;
+      diceBox.classList.add('hidden');
+      return;
+    }
+
+    if(state.lastRoll){
+      diceBox.classList.remove('hidden');
+      document.getElementById('die1').textContent = state.lastRoll.d1;
+      document.getElementById('die2').textContent = state.lastRoll.d2;
+    } else {
+      diceBox.classList.add('hidden');
+    }
+
+    if(state.turnSub==='preRoll'){
+      instr.textContent = myTurn ? 'Roll the dice to start your turn.' : `Waiting for ${state.players[p].name} to roll.`;
+      if(myTurn){
+        const btn=document.createElement('button'); btn.textContent='🎲 Roll dice'; btn.addEventListener('click', rollDice);
+        actions.appendChild(btn);
+      }
+    } else if(state.turnSub==='discard'){
+      const owedCount = Object.keys(state.pendingDiscards||{}).length;
+      instr.textContent = `Waiting on ${owedCount} player${owedCount===1?'':'s'} to discard.`;
+    } else if(state.turnSub==='moveRobber'){
+      instr.textContent = myTurn ? 'Click a hex to move the robber there.' : `${state.players[p].name} is moving the robber.`;
+    } else if(state.turnSub==='steal'){
+      instr.textContent = myTurn ? 'Choose who to steal from.' : `${state.players[p].name} is stealing a card.`;
+    } else if(state.turnSub==='main'){
+      instr.textContent = myTurn ? 'Trade, build, or play a card — then end your turn.' : `Waiting for ${state.players[p].name}.`;
+      if(myTurn){
+        const btn=document.createElement('button'); btn.className='secondary'; btn.textContent='End turn'; btn.addEventListener('click', endTurn);
+        actions.appendChild(btn);
+        if(state.buildMode){
+          const cancel=document.createElement('button'); cancel.className='secondary';
+          cancel.textContent='Cancel: choosing ' + state.buildMode + ' location';
+          cancel.addEventListener('click', ()=>{ state.buildMode=null; commit(); });
+          actions.appendChild(cancel);
+        }
+      }
+    }
+  }
+
+  function renderHand(){
+    const row = document.getElementById('handRow');
+    row.innerHTML = '';
+    let seat = mode==='online' ? mySeatIndex() : state.currentPlayer;
+    if(seat<0 || !state.players[seat]){ row.innerHTML='<div style="color:var(--paper-dim);font-size:12px;">Not seated.</div>'; return; }
+    const hand = state.players[seat].hand;
+    RESOURCES.forEach(r=>{
+      const chip = document.createElement('div'); chip.className='res-chip '+r;
+      chip.innerHTML = `<span class="ico">${RES_ICON[r]}</span><span class="amt">${hand[r]||0}</span><span class="lbl">${RES_LABEL[r]}</span>`;
+      row.appendChild(chip);
+    });
+  }
+
+  function renderBuildCard(){
+    const grid = document.getElementById('buildGrid');
+    grid.innerHTML = '';
+    const devWrap = document.getElementById('devCardHand');
+    devWrap.innerHTML = '';
+    const myTurn = isMyTurn();
+    const canAct = myTurn && state.phase==='playing' && state.turnSub==='main';
+    const p = state.currentPlayer;
+    const hand = state.players[p].hand;
+
+    const items = [
+      {key:'road', name:'Road', cost:BUILD_COSTS.road, limit: state.players[p].roadsBuilt<15},
+      {key:'settlement', name:'Settlement', cost:BUILD_COSTS.settlement, limit: state.players[p].settlementsBuilt<5},
+      {key:'city', name:'City', cost:BUILD_COSTS.city, limit: state.players[p].citiesBuilt<4},
+      {key:'devcard', name:'Dev card', cost:BUILD_COSTS.devcard, limit: state.devDeck.length>0}
+    ];
+    items.forEach(item=>{
+      const btn = document.createElement('div');
+      const affordable = hasResources(hand, item.cost);
+      const usable = canAct && affordable && item.limit;
+      btn.className = 'build-btn' + (state.buildMode===item.key ? ' active' : '');
+      if(!usable) btn.setAttribute('disabled','');
+      const costStr = Object.keys(item.cost).map(r=>item.cost[r]+RES_ICON[r]).join(' ');
+      btn.innerHTML = `<span class="bname">${item.name}</span><span class="bcost">${costStr}</span>`;
+      if(usable){
+        btn.addEventListener('click', ()=>{
+          if(item.key==='devcard'){ buildDevCard(); commit(); return; }
+          state.buildMode = (state.buildMode===item.key) ? null : item.key;
+          render();
+        });
+      }
+      grid.appendChild(btn);
+    });
+
+    if(!canAct) return;
+    const cards = state.players[p].devCards;
+    if(cards.length===0) return;
+    const label = document.createElement('p'); label.style.cssText='font-size:11px;color:var(--paper-dim);margin:10px 0 4px;';
+    label.textContent = 'Your development cards:';
+    devWrap.appendChild(label);
+    const row = document.createElement('div'); row.className='dev-card-row';
+    cards.forEach((card,idx)=>{
+      const el = document.createElement('div');
+      const playable = !state.devCardPlayedThisTurn && card.boughtTurn!==(state.turnCounter||0) && card.type!=='vp';
+      el.className = 'dev-card' + (playable?'':' disabled');
+      el.innerHTML = `<span class="dname">${DEV_NAMES[card.type]}</span>`;
+      if(playable){
+        el.addEventListener('click', ()=>onPlayDevCard(card.type, idx));
+      }
+      row.appendChild(el);
+    });
+    devWrap.appendChild(row);
+  }
+
+  function onPlayDevCard(type, idx){
+    if(type==='knight'){ playKnight(idx); commit(); }
+    else if(type==='roadbuilding'){ playRoadBuilding(idx); commit(); }
+    else if(type==='monopoly'){ openMonopolyPicker(idx); }
+    else if(type==='invention'){ openInventionPicker(idx); }
+  }
+  function openMonopolyPicker(idx){
+    const overlay = document.getElementById('monopolyOverlay');
+    const opts = document.getElementById('monopolyOptions');
+    opts.innerHTML = '';
+    RESOURCES.forEach(r=>{
+      const btn = document.createElement('button'); btn.className='secondary'; btn.style.width='100%';
+      btn.textContent = RES_ICON[r]+' '+RES_LABEL[r];
+      btn.addEventListener('click', ()=>{ overlay.classList.add('hidden'); playMonopoly(idx, r); commit(); });
+      opts.appendChild(btn);
+    });
+    overlay.classList.remove('hidden');
+  }
+  function openInventionPicker(idx){
+    const overlay = document.getElementById('inventionOverlay');
+    const opts = document.getElementById('inventionOptions');
+    opts.innerHTML = '';
+    let picks = [];
+    RESOURCES.forEach(r=>{
+      const chip = document.createElement('div'); chip.className='res-chip '+r; chip.style.cursor='pointer';
+      chip.innerHTML = `<span class="ico">${RES_ICON[r]}</span><span class="amt">0</span><span class="lbl">${RES_LABEL[r]}</span>`;
+      chip.addEventListener('click', ()=>{
+        if(picks.length>=2) return;
+        picks.push(r);
+        chip.querySelector('.amt').textContent = picks.filter(x=>x===r).length;
+        document.getElementById('inventionSubmitBtn').disabled = picks.length!==2;
+      });
+      opts.appendChild(chip);
+    });
+    const submitBtn = document.getElementById('inventionSubmitBtn');
+    submitBtn.disabled = true;
+    submitBtn.onclick = ()=>{
+      if(picks.length!==2) return;
+      overlay.classList.add('hidden');
+      playInvention(idx, picks[0], picks[1]);
+      commit();
+    };
+    overlay.classList.remove('hidden');
+  }
+
+  function renderTradeCard(){
+    const body = document.getElementById('tradeBody');
+    body.innerHTML = '';
+    const myTurn = isMyTurn();
+    const canAct = myTurn && state.phase==='playing' && state.turnSub==='main';
+    const p = state.currentPlayer;
+    const viewerSeat = mode==='online' ? mySeatIndex() : state.currentPlayer;
+
+    // Any open offers relevant to the person looking at this card (their own
+    // outgoing offers, or offers targeted at them) get quick-access controls
+    // here too — the full history (visible to everyone) lives in the chat.
+    const relevant = (state.feed||[]).filter(m=>m.type==='offer' && m.status==='open' &&
+      (m.fromSeat===viewerSeat || eligibleRecipientSeats(m).indexOf(viewerSeat)!==-1));
+    if(relevant.length){
+      const hdr = document.createElement('p'); hdr.style.cssText='font-size:12px;color:var(--paper-dim);margin:0 0 6px;';
+      hdr.textContent = 'Open trade offers:';
+      body.appendChild(hdr);
+      relevant.forEach(off=>{
+        const giveStr = Object.keys(off.give).map(r=>off.give[r]+' '+RES_LABEL[r]).join(', ');
+        const wantStr = Object.keys(off.want).map(r=>off.want[r]+' '+RES_LABEL[r]).join(', ');
+        const toStr = off.recipients.length ? off.recipients.map(seatName).join(', ') : 'everyone';
+        const box = document.createElement('div');
+        box.style.cssText='background:#0F2540;border:1px solid var(--accent);border-radius:8px;padding:10px;margin-bottom:8px;font-size:12px;';
+        box.innerHTML = `<b>${escapeHtml(off.fromName)}</b> gives <b>${giveStr||'nothing'}</b> for <b>${wantStr||'nothing'}</b><br><span style="color:var(--paper-dim);font-size:10.5px;">to ${escapeHtml(toStr)}</span>`;
+        if(off.fromSeat===viewerSeat){
+          const cancel = document.createElement('button'); cancel.className='secondary'; cancel.textContent='Cancel offer';
+          cancel.style.cssText='width:100%;margin-top:6px;';
+          cancel.addEventListener('click', ()=>cancelOffer(off.id));
+          box.appendChild(cancel);
+        } else {
+          const row = document.createElement('div'); row.style.cssText='display:flex;gap:6px;margin-top:6px;';
+          const acc = document.createElement('button'); acc.textContent='Accept'; acc.style.flex='1';
+          acc.addEventListener('click', ()=>acceptOffer(off.id, viewerSeat));
+          const dec = document.createElement('button'); dec.className='secondary'; dec.textContent='Decline'; dec.style.flex='1';
+          dec.addEventListener('click', ()=>declineOffer(off.id, viewerSeat));
+          row.appendChild(acc); row.appendChild(dec);
+          box.appendChild(row);
+        }
+        body.appendChild(box);
+      });
+    }
+
+    if(!canAct){
+      if(!relevant.length) body.innerHTML = '<p style="font-size:12px;color:var(--paper-dim);margin:0;">Trading is available on your turn, after rolling.</p>';
+      return;
+    }
+
+    const rates = playerPortRates(p);
+    const hand = state.players[p].hand;
+
+    const title = document.createElement('p'); title.style.cssText='font-size:12px;color:var(--paper-dim);margin:0 0 6px;';
+    title.textContent = 'Trade with the bank:';
+    body.appendChild(title);
+
+    const giveSel = document.createElement('select'); const wantSel = document.createElement('select');
+    RESOURCES.forEach(r=>{
+      const o1=document.createElement('option'); o1.value=r; o1.textContent=`${RES_LABEL[r]} (have ${hand[r]||0})`; giveSel.appendChild(o1);
+      const o2=document.createElement('option'); o2.value=r; o2.textContent=RES_LABEL[r]; wantSel.appendChild(o2);
+    });
+    wantSel.value = RESOURCES.find(r=>r!==giveSel.value) || RESOURCES[1];
+    const row1 = document.createElement('div'); row1.className='inline-row'; row1.style.marginBottom='6px';
+    row1.appendChild(giveSel);
+    const rateLbl = document.createElement('span'); rateLbl.style.cssText='font-size:11px;color:var(--paper-dim);white-space:nowrap;';
+    function updateRate(){ rateLbl.textContent = ':1 → ' + rates[giveSel.value]; }
+    updateRate();
+    giveSel.addEventListener('change', updateRate);
+    row1.appendChild(rateLbl);
+    body.appendChild(row1);
+    const row2 = document.createElement('div'); row2.className='inline-row'; row2.style.marginBottom='8px';
+    row2.appendChild(wantSel);
+    const goBtn = document.createElement('button'); goBtn.textContent='Trade';
+    goBtn.addEventListener('click', ()=>{
+      const rate = rates[giveSel.value];
+      if(giveSel.value===wantSel.value){ alert('Pick two different resources.'); return; }
+      if((hand[giveSel.value]||0) < rate){ alert(`You need ${rate} ${RES_LABEL[giveSel.value]} for this trade.`); return; }
+      tradeWithBank(giveSel.value, wantSel.value, rate);
+    });
+    row2.appendChild(goBtn);
+    body.appendChild(row2);
+
+    const title2 = document.createElement('p'); title2.style.cssText='font-size:12px;color:var(--paper-dim);margin:10px 0 6px;';
+    title2.textContent = 'Propose a trade with other players:';
+    body.appendChild(title2);
+    const giveN = {}; const wantN = {};
+    RESOURCES.forEach(r=>{ giveN[r]=0; wantN[r]=0; });
+
+    function resRow(labelText, amounts){
+      const wrap = document.createElement('div'); wrap.style.cssText='margin-bottom:6px;';
+      const lbl = document.createElement('div');
+      lbl.style.cssText='font-size:11px;font-weight:700;color:var(--accent);margin-bottom:3px;';
+      lbl.textContent = labelText;
+      wrap.appendChild(lbl);
+      const grid = document.createElement('div'); grid.style.cssText='display:grid;grid-template-columns:repeat(5,1fr);gap:4px;';
+      RESOURCES.forEach(r=>{
+        const col = document.createElement('div'); col.style.cssText='display:flex;flex-direction:column;gap:2px;align-items:center;';
+        const rl = document.createElement('span'); rl.style.cssText='font-size:9px;color:var(--paper-dim);'; rl.textContent=RES_LABEL[r];
+        const inp = document.createElement('input'); inp.type='number'; inp.min='0'; inp.value='0'; inp.style.cssText='width:100%;text-align:center;padding:5px 2px;';
+        inp.addEventListener('input', ()=> amounts[r]=parseInt(inp.value,10)||0);
+        col.appendChild(rl); col.appendChild(inp);
+        grid.appendChild(col);
+      });
+      wrap.appendChild(grid);
+      body.appendChild(wrap);
+    }
+    resRow('You give:', giveN);
+    resRow('You get:', wantN);
+
+    // Recipient picker — pick specific players, or leave "Everyone" checked.
+    const recWrap = document.createElement('div'); recWrap.style.cssText='margin-bottom:8px;';
+    const recLbl = document.createElement('div');
+    recLbl.style.cssText='font-size:11px;font-weight:700;color:var(--accent);margin-bottom:3px;';
+    recLbl.textContent = 'Send offer to:';
+    recWrap.appendChild(recLbl);
+    const everyoneRow = document.createElement('label'); everyoneRow.style.cssText='display:flex;align-items:center;gap:6px;font-size:12px;margin-bottom:2px;';
+    const everyoneChk = document.createElement('input'); everyoneChk.type='checkbox'; everyoneChk.checked=true;
+    everyoneRow.appendChild(everyoneChk); everyoneRow.appendChild(document.createTextNode('Everyone'));
+    recWrap.appendChild(everyoneRow);
+    const playerChks = [];
+    state.players.forEach((pl,idx)=>{
+      if(idx===p) return;
+      const row = document.createElement('label'); row.style.cssText='display:flex;align-items:center;gap:6px;font-size:12px;margin-bottom:2px;';
+      const chk = document.createElement('input'); chk.type='checkbox'; chk.dataset.seat=idx;
+      chk.addEventListener('change', ()=>{
+        if(chk.checked) everyoneChk.checked=false;
+        const anyChecked = playerChks.some(c=>c.checked);
+        if(!anyChecked) everyoneChk.checked=true;
+      });
+      row.appendChild(chk); row.appendChild(document.createTextNode(pl.name));
+      recWrap.appendChild(row);
+      playerChks.push(chk);
+    });
+    everyoneChk.addEventListener('change', ()=>{
+      if(everyoneChk.checked) playerChks.forEach(c=>c.checked=false);
+    });
+    body.appendChild(recWrap);
+
+    const proposeBtn = document.createElement('button'); proposeBtn.textContent='Propose trade'; proposeBtn.style.width='100%';
+    proposeBtn.addEventListener('click', ()=>{
+      const give={}, want={};
+      RESOURCES.forEach(r=>{ if(giveN[r]>0) give[r]=giveN[r]; if(wantN[r]>0) want[r]=wantN[r]; });
+      if(Object.keys(give).length===0 || Object.keys(want).length===0){ alert('Enter at least one resource on each side.'); return; }
+      if(!hasResources(hand, give)){ alert("You don't have enough of what you're offering."); return; }
+      const recipients = playerChks.filter(c=>c.checked).map(c=>parseInt(c.dataset.seat,10));
+      offerTrade(give, want, recipients);
+    });
+    body.appendChild(proposeBtn);
+  }
+
+  function renderPlayers(){
+    const list = document.getElementById('playersList');
+    list.innerHTML = '';
+    state.players.forEach((pl,idx)=>{
+      const row = document.createElement('div'); row.className='player-row' + (idx===state.currentPlayer?' active':'');
+      const sw = document.createElement('div'); sw.className='swatch'; sw.style.background=pl.color;
+      const nm = document.createElement('div'); nm.className='name'; nm.textContent=pl.name;
+      const meta = document.createElement('div'); meta.className='meta';
+      const badges = [];
+      if(state.longestRoadPlayer===idx) badges.push('Longest Route');
+      if(state.largestArmyPlayer===idx) badges.push('Largest Army');
+      meta.textContent = badges.join(' · ');
+      const vp = document.createElement('div'); vp.className='vp'; vp.textContent = playerVP(idx)+' VP';
+      row.appendChild(sw); row.appendChild(nm); row.appendChild(meta); row.appendChild(vp);
+      list.appendChild(row);
+    });
+  }
+
+  function renderLog(){
+    const el = document.getElementById('log');
+    el.innerHTML = '';
+    (state.log||[]).slice(-30).forEach(entry=>{
+      const d = document.createElement('div');
+      if(entry.win) d.className='win';
+      d.textContent = entry.text;
+      el.appendChild(d);
+    });
+  }
+
+  function renderOverlays(){
+    // discard
+    const discardOverlay = document.getElementById('discardOverlay');
+    const discardSeat = myDiscardSeat();
+    if(discardSeat!==null && discardSeat!==undefined){
+      discardOverlay.classList.remove('hidden');
+      renderDiscardPicker(discardSeat);
+    } else {
+      discardOverlay.classList.add('hidden');
+    }
+    // steal
+    const stealOverlay = document.getElementById('stealOverlay');
+    if(isMyTurn() && state.turnSub==='steal' && state.stealCandidates){
+      stealOverlay.classList.remove('hidden');
+      const opts = document.getElementById('stealOptions');
+      opts.innerHTML = '';
+      state.stealCandidates.forEach(idx=>{
+        const btn = document.createElement('button'); btn.style.width='100%';
+        btn.textContent = state.players[idx].name + ` (${handTotal(state.players[idx].hand)} cards)`;
+        btn.addEventListener('click', ()=>doSteal(idx));
+        opts.appendChild(btn);
+      });
+    } else {
+      stealOverlay.classList.add('hidden');
+    }
+    // gameover
+    const goOverlay = document.getElementById('gameoverOverlay');
+    if(state.phase==='gameover'){
+      goOverlay.classList.remove('hidden');
+      document.getElementById('gameoverTitle').textContent = state.players[state.winner].name + ' wins!';
+      document.getElementById('gameoverTitle').style.color = state.players[state.winner].color;
+      document.getElementById('gameoverText').textContent = `Reached ${playerVP(state.winner)} victory points.`;
+    } else {
+      goOverlay.classList.add('hidden');
+    }
+  }
+  function myDiscardSeat(){
+    if(!state || state.turnSub!=='discard' || !state.pendingDiscards) return null;
+    if(mode==='online'){
+      const s = mySeatIndex();
+      return (s>=0 && state.pendingDiscards[s]!==undefined) ? s : null;
+    }
+    const keys = Object.keys(state.pendingDiscards);
+    return keys.length ? parseInt(keys[0],10) : null;
+  }
+  function renderDiscardPicker(seatIdx){
+    document.getElementById('discardPrompt').textContent =
+      `${state.players[seatIdx].name}, discard ${state.pendingDiscards[seatIdx]} card${state.pendingDiscards[seatIdx]===1?'':'s'}.`;
+    const row = document.getElementById('discardHandRow');
+    row.innerHTML = '';
+    const need = state.pendingDiscards[seatIdx];
+    const hand = state.players[seatIdx].hand;
+    const chosen = {};
+    RESOURCES.forEach(r=>chosen[r]=0);
+    const submitBtn = document.getElementById('discardSubmitBtn');
+    function refresh(){
+      const total = Object.values(chosen).reduce((a,b)=>a+b,0);
+      submitBtn.disabled = total!==need;
+      submitBtn.textContent = `Discard selected (${total}/${need})`;
+    }
+    RESOURCES.forEach(r=>{
+      const chip = document.createElement('div'); chip.className='res-chip '+r; chip.style.cursor='pointer';
+      chip.innerHTML = `<span class="ico">${RES_ICON[r]}</span><span class="amt">0 / ${hand[r]||0}</span><span class="lbl">${RES_LABEL[r]}</span>`;
+      chip.addEventListener('click', ()=>{
+        if(chosen[r]>=(hand[r]||0)) return;
+        const total = Object.values(chosen).reduce((a,b)=>a+b,0);
+        if(total>=need) return;
+        chosen[r]++;
+        chip.querySelector('.amt').textContent = `${chosen[r]} / ${hand[r]||0}`;
+        refresh();
+      });
+      row.appendChild(chip);
+    });
+    refresh();
+    submitBtn.onclick = ()=> submitDiscard(seatIdx, chosen);
+  }
+
+  // ---------- CHAT (floating widget) ----------
+  // A short preview {who, text} for any chat entry — text messages, moves,
+  // and trade offers all render through here so the toast/badge logic
+  // doesn't need to know the difference.
+  function chatPreview(m){
+    if(m.type==='offer'){
+      const giveStr = Object.keys(m.give).map(r=>m.give[r]+' '+RES_LABEL[r]).join(', ') || 'nothing';
+      const wantStr = Object.keys(m.want).map(r=>m.want[r]+' '+RES_LABEL[r]).join(', ') || 'nothing';
+      if(m.status==='accepted') return {who:'Trade', text:`${seatName(m.acceptedBy)} accepted ${m.fromName}'s offer.`};
+      if(m.status==='cancelled') return {who:'Trade', text:`${m.fromName} cancelled a trade offer.`};
+      return {who:m.fromName, text:`offers ${giveStr} for ${wantStr}`};
+    }
+    if(m.type==='move') return {who:'', text:m.text};
+    return {who:m.name||'?', text:m.text};
+  }
+  function renderOfferCard(off){
+    const giveStr = Object.keys(off.give).map(r=>off.give[r]+' '+RES_LABEL[r]).join(', ') || 'nothing';
+    const wantStr = Object.keys(off.want).map(r=>off.want[r]+' '+RES_LABEL[r]).join(', ') || 'nothing';
+    const toStr = off.recipients && off.recipients.length ? off.recipients.map(seatName).join(', ') : 'everyone';
+    let statusHtml = '';
+    let btnsHtml = '';
+    if(off.status==='accepted'){
+      statusHtml = `<div class="offer-status">Accepted by ${escapeHtml(seatName(off.acceptedBy))}.</div>`;
+    } else if(off.status==='cancelled'){
+      statusHtml = `<div class="offer-status">Offer cancelled.</div>`;
+    } else {
+      const viewerSeat = mode==='online' ? mySeatIndex() : null;
+      const eligible = eligibleRecipientSeats(off);
+      if(mode!=='online'){
+        // Local hotseat: whoever's turn it is at the screen can act for any
+        // eligible seat, so show a compact button per eligible player.
+        btnsHtml = eligible.map(s=>
+          `<button data-off="${off.id}" data-act="accept" data-seat="${s}">Accept (${escapeHtml(seatName(s))})</button>`+
+          `<button data-off="${off.id}" data-act="decline" data-seat="${s}" class="secondary">Decline (${escapeHtml(seatName(s))})</button>`
+        ).join('');
+        btnsHtml += `<button data-off="${off.id}" data-act="cancel" class="secondary">Cancel</button>`;
+      } else if(eligible.indexOf(viewerSeat)!==-1){
+        btnsHtml = `<button data-off="${off.id}" data-act="accept" data-seat="${viewerSeat}">Accept</button>`+
+          `<button data-off="${off.id}" data-act="decline" data-seat="${viewerSeat}" class="secondary">Decline</button>`;
+      } else if(viewerSeat===off.fromSeat){
+        btnsHtml = `<button data-off="${off.id}" data-act="cancel" class="secondary">Cancel offer</button>`;
+      }
+    }
+    return `<div class="chat-offer">
+        <div class="offer-head">${escapeHtml(off.fromName)} offers <b>${escapeHtml(giveStr)}</b> for <b>${escapeHtml(wantStr)}</b></div>
+        <div class="offer-to">to ${escapeHtml(toStr)}</div>
+        ${btnsHtml ? `<div class="offer-btns">${btnsHtml}</div>` : ''}
+        ${statusHtml}
+      </div>`;
+  }
+  // Delegated click handling for Accept/Decline/Cancel buttons rendered
+  // inside chat offer cards (the log's innerHTML is rebuilt on every render,
+  // so this listener is attached once on the stable container).
+  function onChatLogClick(e){
+    const btn = e.target.closest('button[data-off]');
+    if(!btn) return;
+    const offId = btn.dataset.off;
+    const act = btn.dataset.act;
+    const seat = btn.dataset.seat!==undefined ? parseInt(btn.dataset.seat,10) : null;
+    if(act==='accept') acceptOffer(offId, seat);
+    else if(act==='decline') declineOffer(offId, seat);
+    else if(act==='cancel') cancelOffer(offId);
+  }
+
+  // ======================================================================
+  // EVENTS
+  // ======================================================================
+  function resetHomeCard(){
+    homeCard.innerHTML = `
+      <h2>How do you want to play?</h2>
+      <div class="home-btns">
+        <button id="localBtn">Play on this device</button>
+        <button class="secondary" id="onlineBtn">Play online with friends</button>
+      </div>`;
+    document.getElementById('localBtn').addEventListener('click', showLocalCountPicker);
+    document.getElementById('onlineBtn').addEventListener('click', goOnlineSetup);
+  }
+  function showLocalCountPicker(){
+    homeCard.innerHTML = `
+      <h2>How many settlers?</h2>
+      <div class="count-btns">
+        <button data-n="2">2 players</button>
+        <button data-n="3">3 players</button>
+        <button data-n="4">4 players</button>
+      </div>
+      <div style="margin-top:12px;"><button class="secondary" id="backHomeBtn2">Back</button></div>`;
+    homeCard.addEventListener('click', (e)=>{
+      const btn = e.target.closest('button[data-n]');
+      if(btn){ startLocalGame(parseInt(btn.dataset.n,10)); return; }
+      if(e.target.id==='backHomeBtn2'){ mode=null; state=null; resetHomeCard(); render(); }
+    });
+  }
+  function goOnlineSetup(){
+    mode='online'; state=null;
+    hideAllCards(); onlineSetupCard.classList.remove('hidden');
+    render();
+  }
+  document.getElementById('localBtn').addEventListener('click', showLocalCountPicker);
+  document.getElementById('onlineBtn').addEventListener('click', goOnlineSetup);
+
+  document.getElementById('backHomeBtn').addEventListener('click', ()=>{
+    mode=null; state=null; roomRef=null; roomCode=null;
+    resetHomeCard(); render();
+  });
+  document.getElementById('createRoomBtn').addEventListener('click', createRoom);
+  document.getElementById('joinRoomBtn').addEventListener('click', ()=>{
+    joinRoom(document.getElementById('joinCodeInput').value);
+  });
+  document.getElementById('copyLinkBtn').addEventListener('click', e=> SG.copyInviteLink(e.currentTarget));
+
+  document.getElementById('newGameBtn').addEventListener('click', ()=>{
+    if(mode==='online' && roomRef){
+      if(!confirm('Reset this room for everyone and start a new lobby?')) return;
+      state = freshState(2);
+      commitReset();
+    } else {
+      mode=null; state=null; roomRef=null; roomCode=null;
+      resetHomeCard(); render();
+    }
+  });
+  document.getElementById('gameoverBtn').addEventListener('click', ()=>{
+    if(mode==='online' && roomRef){
+      state = freshState(2);
+      commitReset();
+    } else {
+      mode=null; state=null;
+      resetHomeCard(); render();
+    }
+  });
+
+
+  // ======================================================================
+  // INIT
+  // ======================================================================
+  if(/[?&]debug/.test(location.search)) window.__colonistDebug = { get state(){ return state; }, offer:offerTrade, accept:acceptOffer, decline:declineOffer, cancel:cancelOffer, setHand:(seat,h)=>{ Object.assign(state.players[seat].hand,h); commit(); } };
+  deviceId = SG.getDeviceId();
+  const baseUrl = location.origin + location.pathname;
+  const homeLink = document.getElementById('homeLink');
+  homeLink.href = baseUrl;
+  homeLink.addEventListener('click', (e)=>{ e.preventDefault(); location.href = baseUrl; });
+
+  const urlRoom = new URLSearchParams(location.search).get('room');
+  render();
+  if(urlRoom && FIREBASE_CONFIGURED && fbDb){
+    goOnlineSetup();
+    document.getElementById('joinCodeInput').value = urlRoom;
+    joinRoom(urlRoom);
+  }
+})();
+</script>
+</body>
+</html>

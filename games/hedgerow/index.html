@@ -1,0 +1,1565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Hedgerow</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../shared/sg.css">
+<script src="../../shared/boot.js" data-libs="firebase,three"></script>
+<style>
+  /* ---------- Hedgerow-specific ---------- */
+  .mode-row{display:flex; gap:8px; margin-top:12px;}
+  .mode-btn{flex:1 1 0; padding:9px 8px; font-size:13px; background:#0F2540; color:var(--paper);
+    border:1px solid var(--grid-line);}
+  .mode-btn.active{background:var(--accent); color:#1a1204; border-color:var(--accent);}
+  .player-row .meta{margin-left:auto; color:var(--paper-dim); font-size:12px; text-align:right; line-height:1.35;}
+  .hint-small{font-size:11.5px; color:var(--paper-dim); margin:8px 0 0; line-height:1.5;}
+  .hedge-tray{display:flex; gap:10px; align-items:center; margin-top:12px; padding:10px 12px;
+    border:1px dashed var(--grid-line); border-radius:var(--radius-sm);}
+  .hedge-tray .tray-label{flex:1; font-size:12px; color:var(--paper-dim); line-height:1.4;}
+  .hedge-piece{touch-action:none; cursor:grab; user-select:none; -webkit-user-select:none;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px;
+    width:68px; height:68px; border-radius:8px; border:1px solid var(--grid-line); background:#0F2540;
+    font-size:10px; color:var(--paper-dim);}
+  .hedge-piece:hover{border-color:var(--accent);}
+  .hedge-piece.active{border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-soft); color:var(--paper);}
+  .hedge-piece.disabled{opacity:0.35; cursor:not-allowed;}
+  .hedge-piece i{display:block; background:linear-gradient(#4DB05D,#2E7D3C); border-radius:6px; pointer-events:none;
+    box-shadow:inset 0 2px 3px rgba(255,255,255,0.28), inset 0 -2px 4px rgba(0,0,0,0.35);}
+  .hedge-piece[data-o="h"] i{width:46px; height:12px;}
+  .hedge-piece[data-o="v"] i{width:12px; height:36px;}
+  body.dragging-hedge, body.dragging-hedge *{cursor:grabbing !important; user-select:none;}
+  .overlay-card .btn-row{display:flex; gap:10px; justify-content:center; flex-wrap:wrap;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Hedge<span>row</span></h1>
+      <p class="tagline">Race to the far side — and grow hedges to slow your rivals.</p>
+    </div>
+    <button class="secondary" id="newGameBtn">New game</button>
+  </header>
+
+  <main>
+    <div class="board-col">
+      <div class="board3d-wrap" id="board3dWrap">
+        <div id="board3d"></div>
+        <div class="rotate-hint" id="rotateHint">🖱️ Drag to rotate · scroll to zoom</div>
+      </div>
+    </div>
+
+    <div class="panel-col">
+
+      <div class="card menu-card" id="homeCard"></div>
+
+      <div class="card hidden" id="onlineSetupCard">
+        <h2>Play online</h2>
+        <div id="notConfiguredNote" class="hidden">
+          <p style="font-size:13px;color:var(--paper-dim);line-height:1.6;">
+            Online play isn't set up in this copy of the file yet.
+          </p>
+        </div>
+        <div id="configuredControls" class="hidden">
+          <div class="row-gap">
+            <button id="createRoomBtn">Create a room</button>
+          </div>
+          <div class="row-gap">
+            <div class="inline-row">
+              <input type="text" id="joinCodeInput" placeholder="Room code" maxlength="6">
+              <button class="secondary" id="joinRoomBtn">Join</button>
+            </div>
+          </div>
+        </div>
+        <button class="secondary" id="backHomeBtn" style="margin-top:14px;">Back</button>
+      </div>
+
+      <div class="card hidden" id="lobbyCard">
+        <h2>Room lobby</h2>
+        <div class="room-code" id="lobbyCode"></div>
+        <div class="inline-row" style="margin-bottom:12px;">
+          <button class="secondary" id="copyLinkBtn" style="flex:1;">Copy invite link</button>
+        </div>
+        <div id="lobbyCountPick" class="row-gap hidden">
+          <p style="font-size:13px;color:var(--paper-dim);margin:0;">How many are playing?</p>
+          <div class="count-btns">
+            <button data-count="2">2 players</button>
+            <button data-count="4">4 players</button>
+          </div>
+        </div>
+        <div id="lobbyTimerPick" class="row-gap"></div>
+        <div id="lobbySeats" class="row-gap"></div>
+        <button id="startOnlineBtn" class="hidden" style="margin-top:6px;">Start game</button>
+      </div>
+
+      <div class="card hidden" id="turnCard">
+        <h2 id="phaseLabel">Current turn</h2>
+        <div class="turn-row">
+          <div class="chip" id="turnChip"></div>
+          <div class="turn-name" id="turnName"></div>
+          <div class="turn-timer hidden" id="turnTimer">10s</div>
+        </div>
+        <p class="turn-instruction" id="turnInstruction"></p>
+        <div class="mode-row hidden" id="modeRow">
+          <button class="mode-btn active" id="modeMoveBtn">Move pawn</button>
+          <button class="mode-btn" id="modeWallBtn">Place hedge</button>
+        </div>
+        <div class="hedge-tray hidden" id="hedgeTray">
+          <div class="tray-label">Drag a hedge onto the board, or tap one then click a gap.<br><b>R</b> or right-click turns it.</div>
+          <div class="hedge-piece" data-o="h" title="Horizontal hedge"><i></i><span>Across</span></div>
+          <div class="hedge-piece" data-o="v" title="Vertical hedge"><i></i><span>Up/down</span></div>
+        </div>
+        <p class="hint-small hidden" id="modeHint"></p>
+      </div>
+
+      <div class="card hidden" id="playersCard">
+        <h2>Players</h2>
+        <div class="players-list" id="playersList"></div>
+      </div>
+
+      <div class="card hidden" id="logCard">
+        <h2>Game log</h2>
+        <div class="log" id="log"></div>
+      </div>
+
+      <div class="card">
+        <details>
+          <summary>How to play</summary>
+          <p>
+            Be the first to walk your pawn to the opposite side of the 9×9 board. On your turn you do <b>one</b> of two things:
+            step your pawn one square up, down, left or right, or place one of your hedges (each is two squares long) in a
+            gap between squares to block movement.
+          </p>
+          <p>
+            If an enemy pawn is right in front of you, you can jump over it. If a hedge or the edge is behind it, you can
+            hop diagonally to either side instead. Hedges can't overlap or cross, and you may never wall off a player
+            completely — everyone must always keep at least one path to their goal.
+          </p>
+          <p>
+            To place a hedge, drag one of the two hedge pieces (across or up/down) from the tray onto the board and let go
+            in the gap you want. You can also tap a piece to pick its direction, aim at a gap and click; R or a right-click turns it.
+            Green means the spot is legal, red means it isn't.
+          </p>
+        </details>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+
+<div class="overlay hidden" id="overlay">
+  <div class="overlay-card">
+    <h2 id="overlayTitle"></h2>
+    <p id="overlayText"></p>
+    <div class="btn-row">
+      <button class="secondary" id="reviewBtn">Review board</button>
+      <button id="overlayBtn">Play again</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  // ---- shared code (see ../../shared/sg.js) ----
+  const {escapeHtml, newId, expireTs, genRoomCode} = SG;
+  const getDeviceId = SG.getDeviceId;
+  const renderTimerPicker = (container, onPick, v)=> SG.renderTimerPicker(container, onPick, v!==undefined ? v : (state ? state.turnTimerSeconds : 0));
+  function renderTurnTimer(){ SG.renderTurnTimer(document.getElementById('turnTimer'), state.turnPhaseDeadline, state.phase==='playing'); }
+  const ticker = SG.createTicker(()=>{
+    if(!state || !state.turnPhaseDeadline) return;
+    checkTurnTimeout();
+    if(state && state.turnPhaseDeadline) renderTurnTimer();
+  });
+  const startTurnTicking = ticker.start, stopTurnTicking = ticker.stop;
+  const chat = SG.createChat({
+    getState: ()=>state, getRoomRef: ()=>roomRef, isOnline: ()=>mode==='online',
+    get deviceId(){ return deviceId; },
+    mySeatName: ()=>{ const i = mySeatIndex(); return i>=0 ? (state.seatNames[i] || `Player ${i+1}`) : null; },
+    canChat: ()=> mySeatIndex()>=0
+  });
+  const renderChatWidget = ()=> chat.render();
+  const flash = (msg)=> chat.flash(msg);
+
+  const PLAYER_COLORS = ['#E1604A','#3FBF8F','#B98CE0','#5DADE2'];
+  const PLAYER_NAMES = ['Player 1','Player 2','Player 3','Player 4'];
+  const N = 9;                       // board is N x N squares
+  // Seat -> start square. Seat 0 bottom, 1 top, 2 left, 3 right (2-player games use seats 0 and 1).
+  const START = [{r:N-1,c:4},{r:0,c:4},{r:4,c:0},{r:4,c:N-1}];
+  const SIDE_NAME = ['bottom','top','left','right'];
+  function turnOrder(n){ return n===2 ? [0,1] : [0,2,1,3]; } // clockwise when seen from the bottom
+  function goalReached(seat, r, c){
+    if(seat===0) return r===0;
+    if(seat===1) return r===N-1;
+    if(seat===2) return c===N-1;
+    return c===0;
+  }
+
+  let mode = null;        // null | 'local' | 'online'
+  let state = null;
+  let roomCode = null;
+  let roomRef = null;
+  let deviceId = null;
+
+  // Local-only UI state (never synced)
+  let wallMode = false;
+  let wallHover = null;              // {r,c,o,ok} while previewing a hedge
+  let pendingSlot = null;            // touch: first tap previews, second tap places
+  let wallOrient = 'h';              // orientation of the hedge in hand ('h' or 'v') — chosen by the player
+  let dragWall = null;               // active drag from the hedge tray
+  let lastPointer = null;
+  let overlayDismissed = false;
+  let localCount = 2;
+  let localTimerChoice = 0;
+  let lastEventSeen = undefined;     // undefined = nothing seen yet (don't replay old events)
+
+  // ---------- Firebase ----------
+  const fbDb = SG.initFirestore();
+  const ROOMS = 'hedgeRooms';
+
+
+  function key(r,c){ return r+'_'+c; }
+  function inBoard(r,c){ return r>=0 && r<N && c>=0 && c<N; }
+  function tileName(r,c){ return 'ABCDEFGHI'[c] + (N - r); }
+
+  function freshState(){
+    return {
+      phase: 'lobby',            // lobby, playing, gameover
+      numPlayers: 0,
+      seats: [null,null,null,null],
+      seatNames: ['','','',''],
+      players: [],
+      pawns: [],                 // pawns[seat] = {r,c}
+      walls: [],                 // {r,c,o:'h'|'v',p}
+      wallsLeft: [],
+      turnIndex: 0,
+      winner: null,
+      winReason: '',
+      log: [],
+      chat: [],
+      lastEvent: null,
+      gameId: null,
+      turnTimerSeconds: 0,       // 0 = off; otherwise seconds allowed per turn
+      turnPhaseDeadline: null
+    };
+  }
+
+  function addLogTo(s, text, isWin){
+    if(!s.log) s.log = [];
+    s.log.push({text, win:!!isWin});
+    if(s.log.length>60) s.log = s.log.slice(-60);
+  }
+  function addLog(text, isWin){ addLogTo(state, text, isWin); }
+
+  function commit(keys){
+    if(mode==='online' && roomRef) SG.writeKeys(roomRef, state, keys||ALL_GAME_KEYS);
+    render();
+  }
+  async function mutateRoom(keys, fn){
+    if(mode!=='online' || !roomRef){
+      const res = fn(state);
+      render();
+      return res;
+    }
+    return SG.mutateRoom(roomRef, keys, fn);
+  }
+
+  // ---------- commit: write + render ----------
+  const ALL_GAME_KEYS = ['phase','players','pawns','walls','wallsLeft','turnIndex','winner','winReason','log','lastEvent','gameId','turnPhaseDeadline'];
+  const MOVE_KEYS = ['phase','pawns','walls','wallsLeft','turnIndex','winner','winReason','log','lastEvent','turnPhaseDeadline'];
+
+  // Partial writes (never the whole document) so a chat message can't overwrite a move or vice versa.
+
+  // Atomic read-modify-write on the room document. `fn(s)` mutates the fresh copy;
+  // return a truthy value to abort (that value is returned to the caller).
+
+  // ---------- setup of a new game (shared by local + online) ----------
+  function wallsPerPlayer(n){ return n===2 ? 10 : 5; }
+  function setupNewGame(s, n, names){
+    s.numPlayers = n;
+    s.players = [];
+    s.pawns = [];
+    s.wallsLeft = [];
+    for(let i=0;i<n;i++){
+      s.players.push({color:PLAYER_COLORS[i], name: names[i] || PLAYER_NAMES[i]});
+      s.pawns.push({r:START[i].r, c:START[i].c});
+      s.wallsLeft.push(wallsPerPlayer(n));
+    }
+    s.walls = [];
+    s.turnIndex = 0;
+    s.winner = null; s.winReason = '';
+    s.log = []; s.lastEvent = null;
+    s.gameId = newId();
+    s.phase = 'playing';
+    s.turnPhaseDeadline = s.turnTimerSeconds>0 ? Date.now() + s.turnTimerSeconds*1000 : null;
+    addLogTo(s, `New game: ${n} players. First to reach the far side wins.`);
+  }
+
+  // ---------- LOCAL MODE ----------
+  function startLocalGame(n, timerSeconds){
+    mode = 'local';
+    resetClientBits();
+    state = freshState();
+    state.turnTimerSeconds = timerSeconds || 0;
+    setupNewGame(state, n, []);
+    commit();
+  }
+
+  // ---------- ONLINE MODE ----------
+  function createRoom(){
+    if(!fbDb) return;
+    SG.sweepOldRooms(ROOMS);
+    roomCode = genRoomCode();
+    roomRef = fbDb.collection(ROOMS).doc(roomCode);
+    mode = 'online';
+    resetClientBits();
+    state = freshState();
+    state.expireAt = expireTs();
+    roomRef.set(state).then(()=>{
+      subscribeRoom();
+      const url = new URL(location.href);
+      url.searchParams.set('room', roomCode);
+      history.replaceState(null,'',url.toString());
+    });
+  }
+  function joinRoom(code){
+    if(!fbDb || !code) return;
+    roomCode = code.trim().toUpperCase();
+    roomRef = fbDb.collection(ROOMS).doc(roomCode);
+    mode = 'online';
+    resetClientBits();
+    roomRef.get().then(snap=>{
+      if(!snap.exists){
+        alert('No room with that code. Check it and try again.');
+        roomRef = null; roomCode = null; mode = null;
+        render();
+        return;
+      }
+      const url = new URL(location.href);
+      url.searchParams.set('room', roomCode);
+      history.replaceState(null,'',url.toString());
+      subscribeRoom();
+    });
+  }
+
+  let roomUnsub = null;
+  function subscribeRoom(){
+    if(roomUnsub) roomUnsub();
+    roomUnsub = roomRef.onSnapshot(snap=>{
+      if(!snap.exists) return;
+      state = snap.data();
+      if(!state.chat) state.chat = [];
+      if(!state.log) state.log = [];
+      if(!state.walls) state.walls = [];
+      if(!state.pawns) state.pawns = [];
+      if(!state.wallsLeft) state.wallsLeft = [];
+      if(!state.players) state.players = [];
+      const prevTurn = lastTurnKey;
+      lastTurnKey = state.gameId + ':' + state.turnIndex;
+      if(prevTurn!==lastTurnKey) clearWallUI();
+      render();
+    }, err=>console.error('room subscription error', err));
+  }
+  let lastTurnKey = null;
+
+  function leaveRoomLocally(){
+    if(roomUnsub){ roomUnsub(); roomUnsub = null; }
+    roomRef = null; roomCode = null;
+  }
+  function resetClientBits(){
+    clearWallUI();
+    overlayDismissed = false;
+    lastEventSeen = undefined;
+    lastTurnKey = null;
+  }
+  function clearWallUI(){
+    wallMode = false; wallHover = null; pendingSlot = null;
+  }
+
+  function mySeatIndex(){
+    if(mode!=='online' || !state || !state.seats) return -1;
+    return state.seats.indexOf(deviceId);
+  }
+  // The seat whose point of view this screen shows (null = none yet)
+  function viewerSeat(){
+    if(mode==='local') return state && state.phase!=='lobby' ? 0 : null;
+    const s = mySeatIndex();
+    return s>=0 ? s : null;
+  }
+
+  async function claimSeat(idx){
+    const res = await mutateRoom(['seats','seatNames'], s=>{
+      if(s.seats[idx]) return 'That seat was just taken.';
+      if(s.seats.indexOf(deviceId)!==-1) return "You're already seated in this room. Use another browser or device for the next player (or pick “Play on this device”).";
+      s.seats[idx] = deviceId;
+      s.seatNames[idx] = PLAYER_NAMES[idx];
+    });
+    if(res) alert(res);
+  }
+  async function renameSeat(idx){
+    if(!state || state.seats[idx]!==deviceId) return;
+    const nm = prompt('Your name?', state.seatNames[idx]||'');
+    if(nm===null) return;
+    const clean = nm.trim().slice(0,20);
+    if(!clean) return;
+    mutateRoom(['seatNames'], s=>{ if(s.seats[idx]!==deviceId) return true; s.seatNames[idx] = clean; });
+  }
+  function startOnlineGame(){
+    mutateRoom(ALL_GAME_KEYS.concat(['numPlayers']), s=>{
+      const n = s.numPlayers;
+      if(s.phase!=='lobby' || !n) return true;
+      for(let i=0;i<n;i++) if(!s.seats[i]) return true;
+      setupNewGame(s, n, s.seatNames);
+    });
+  }
+  function backToLobby(){
+    if(mode==='online' && roomRef){
+      mutateRoom(ALL_GAME_KEYS, s=>{
+        s.phase = 'lobby'; s.players = []; s.pawns = []; s.walls = []; s.wallsLeft = [];
+        s.turnIndex = 0; s.winner = null; s.winReason = ''; s.log = []; s.lastEvent = null;
+        s.gameId = null; s.turnPhaseDeadline = null;
+      });
+    } else { goHome(); }
+  }
+
+
+  // ======================================================================
+  // GAME RULES
+  // ======================================================================
+  function currentSeat(){ return turnOrder(state.numPlayers)[state.turnIndex]; }
+  function isMyTurnToAct(){
+    if(!state || state.phase!=='playing') return false;
+    if(mode==='local') return true;
+    return state.seats[currentSeat()]===deviceId;
+  }
+
+  function wallSets(walls){
+    const h = new Set(), v = new Set();
+    walls.forEach(w=> (w.o==='h' ? h : v).add(w.r+','+w.c));
+    return {h, v};
+  }
+  // Is the step from (r,c) in direction (dr,dc) cut off by a hedge?
+  // A horizontal hedge at (r,c) sits under row r and spans columns c and c+1;
+  // a vertical hedge at (r,c) sits right of column c and spans rows r and r+1.
+  function stepBlocked(S, r, c, dr, dc){
+    if(dr===1)  return S.h.has(r+','+c) || S.h.has(r+','+(c-1));
+    if(dr===-1) return S.h.has((r-1)+','+c) || S.h.has((r-1)+','+(c-1));
+    if(dc===1)  return S.v.has(r+','+c) || S.v.has((r-1)+','+c);
+    return S.v.has(r+','+(c-1)) || S.v.has((r-1)+','+(c-1));
+  }
+  const DIRS = [[1,0],[-1,0],[0,1],[0,-1]];
+
+  function pawnIndexAt(pawns, r, c, n){
+    for(let i=0;i<n;i++) if(pawns[i].r===r && pawns[i].c===c) return i;
+    return -1;
+  }
+  // Legal destination squares for a seat's pawn (steps, straight jumps and diagonal hops)
+  function legalPawnMoves(seat, pawns, S, n){
+    pawns = pawns || state.pawns; S = S || wallSets(state.walls); n = n || state.numPlayers;
+    const me = pawns[seat];
+    const out = [];
+    const add = (r,c)=>{ if(!out.some(o=>o.r===r&&o.c===c)) out.push({r,c}); };
+    DIRS.forEach(([dr,dc])=>{
+      const nr = me.r+dr, nc = me.c+dc;
+      if(!inBoard(nr,nc) || stepBlocked(S, me.r, me.c, dr, dc)) return;
+      if(pawnIndexAt(pawns, nr, nc, n) === -1){ add(nr,nc); return; }
+      // an enemy pawn is in the way: try a straight jump, else hop diagonally
+      const jr = nr+dr, jc = nc+dc;
+      if(inBoard(jr,jc) && !stepBlocked(S, nr, nc, dr, dc) && pawnIndexAt(pawns, jr, jc, n) === -1){
+        add(jr,jc);
+        return;
+      }
+      [[dc,dr],[-dc,-dr]].forEach(([pdr,pdc])=>{
+        const sr = nr+pdr, sc = nc+pdc;
+        if(!inBoard(sr,sc) || stepBlocked(S, nr, nc, pdr, pdc)) return;
+        if(pawnIndexAt(pawns, sr, sc, n) !== -1) return;
+        add(sr,sc);
+      });
+    });
+    return out;
+  }
+
+  // Shortest path length (ignoring pawns) from a square to the seat's goal, or -1 if unreachable
+  function shortestDistance(S, seat, r0, c0){
+    const seen = new Set([r0+','+c0]);
+    let frontier = [[r0,c0]], d = 0;
+    while(frontier.length){
+      const next = [];
+      for(const [r,c] of frontier){
+        if(goalReached(seat, r, c)) return d;
+        for(const [dr,dc] of DIRS){
+          const nr = r+dr, nc = c+dc;
+          if(!inBoard(nr,nc) || stepBlocked(S, r, c, dr, dc)) continue;
+          const k = nr+','+nc;
+          if(seen.has(k)) continue;
+          seen.add(k); next.push([nr,nc]);
+        }
+      }
+      frontier = next; d++;
+    }
+    return -1;
+  }
+
+  // Can this hedge be placed? Returns null if yes, otherwise a short reason.
+  function wallProblem(w, seat){
+    if(w.r<0 || w.r>N-2 || w.c<0 || w.c>N-2) return 'Out of bounds.';
+    const S = wallSets(state.walls);
+    const same = w.o==='h' ? S.h : S.v;
+    const cross = w.o==='h' ? S.v : S.h;
+    if(same.has(w.r+','+w.c)) return 'A hedge is already there.';
+    if(cross.has(w.r+','+w.c)) return "Hedges can't cross.";
+    if(w.o==='h' && (same.has(w.r+','+(w.c-1)) || same.has(w.r+','+(w.c+1)))) return 'That would overlap another hedge.';
+    if(w.o==='v' && (same.has((w.r-1)+','+w.c) || same.has((w.r+1)+','+w.c))) return 'That would overlap another hedge.';
+    if(seat!==undefined && state.wallsLeft[seat] <= 0) return 'You have no hedges left.';
+    // nobody may be completely walled in
+    const S2 = wallSets(state.walls.concat([w]));
+    for(let i=0;i<state.numPlayers;i++){
+      if(shortestDistance(S2, i, state.pawns[i].r, state.pawns[i].c) < 0) return `That would trap ${state.players[i].name}.`;
+    }
+    return null;
+  }
+
+  function resetDeadline(){
+    state.turnPhaseDeadline = state.turnTimerSeconds>0 ? (Date.now() + state.turnTimerSeconds*1000) : null;
+  }
+  function declareWin(seat, reason){
+    state.winner = seat;
+    state.winReason = reason;
+    state.phase = 'gameover';
+    state.turnPhaseDeadline = null;
+    addLog(`${state.players[seat].name} wins — ${reason}.`, true);
+  }
+  function advanceTurn(){
+    state.turnIndex = (state.turnIndex+1) % state.numPlayers;
+    resetDeadline();
+  }
+
+  function doMovePawn(r, c){
+    if(!state || state.phase!=='playing') return false;
+    const seat = currentSeat();
+    if(!legalPawnMoves(seat).some(m=>m.r===r && m.c===c)) return false;
+    state.pawns[seat] = {r, c};
+    state.lastEvent = {id:newId(), kind:'move', seat, r, c};
+    addLog(`${state.players[seat].name} moved to ${tileName(r,c)}.`);
+    clearWallUI();
+    if(goalReached(seat, r, c)) declareWin(seat, 'reached the far side');
+    else advanceTurn();
+    commit(MOVE_KEYS);
+    return true;
+  }
+  function doPlaceWall(w){
+    if(!state || state.phase!=='playing') return false;
+    const seat = currentSeat();
+    const prob = wallProblem(w, seat);
+    if(prob) return prob;
+    const wall = {r:w.r, c:w.c, o:w.o, p:seat};
+    state.walls.push(wall);
+    state.wallsLeft[seat] -= 1;
+    state.lastEvent = {id:newId(), kind:'wall', seat, r:w.r, c:w.c, o:w.o};
+    addLog(`${state.players[seat].name} placed a ${w.o==='h' ? 'horizontal' : 'vertical'} hedge near ${tileName(w.r,w.c)} (${state.wallsLeft[seat]} left).`);
+    clearWallUI();
+    advanceTurn();
+    commit(MOVE_KEYS);
+    return true;
+  }
+
+  // ---------- TURN TIMER ----------
+  // On timeout the active player's pawn automatically takes a step along their shortest path.
+  function handleTurnTimeout(){
+    const seat = currentSeat();
+    const S = wallSets(state.walls);
+    const moves = legalPawnMoves(seat);
+    if(moves.length===0){ advanceTurn(); commit(MOVE_KEYS); return; }
+    let best = [], bestD = Infinity;
+    moves.forEach(m=>{
+      const d = shortestDistance(S, seat, m.r, m.c);
+      const dd = d<0 ? 999 : d;
+      if(dd<bestD){ bestD = dd; best = [m]; } else if(dd===bestD) best.push(m);
+    });
+    const pick = best[Math.floor(Math.random()*best.length)];
+    addLog(`${state.players[seat].name} ran out of time — their pawn stepped forward automatically.`);
+    doMovePawn(pick.r, pick.c);
+  }
+  function checkTurnTimeout(){
+    if(!state || !state.turnPhaseDeadline || state.phase!=='playing') return;
+    if(!isMyTurnToAct()) return; // only the active player's own client acts
+    if(Date.now() < state.turnPhaseDeadline) return;
+    handleTurnTimeout();
+  }
+
+  // ======================================================================
+  // 3D BOARD (Three.js)
+  // ======================================================================
+  const PITCH = 0.62;            // centre-to-centre distance of squares
+  const PAD = 0.5;               // square size (the rest is the hedge groove)
+  const PAD_H = 0.16;
+  const SLAB_TOP = 0.06;
+  const BOARD_C = ((N-1) * PITCH) / 2;
+  const WALL_H = 0.3, WALL_T = 0.1;
+  const WALL_LEN = 2*PITCH - (PITCH-PAD);
+  const PAD_COLORS = [0x132C48, 0x183759];
+  const HIGHLIGHT_COLOR = 0xE8A33D;
+  const HOVER_COLOR = 0x34D399;
+  const OK_COLOR = 0x34D399, BAD_COLOR = 0xE1604A;
+  const CAM_POS = [[1.2,6.9,6.7],[-1.2,6.9,-6.7],[-6.7,6.9,1.2],[6.7,6.9,-1.2]];
+
+  let three = null;
+  let threeFailed = false;
+  let appliedCam = 0;
+
+  function wx(c){ return c*PITCH - BOARD_C; }
+  function wz(r){ return r*PITCH - BOARD_C; }
+  function hexOf(css){ return parseInt(css.replace('#',''), 16); }
+  function wallKey(w){ return w.o+'_'+w.r+'_'+w.c; }
+
+  function ensureThree(){
+    if(three || threeFailed) return;
+    if(typeof THREE==='undefined'){ threeFailed = true; showThreeFallback('3D library failed to load.'); return; }
+    const container = document.getElementById('board3d');
+    if(!container || container.clientWidth===0) return; // try again on the next update
+
+    try{
+      const scene = new THREE.Scene();
+      const w = container.clientWidth, h = container.clientHeight;
+      const camera = new THREE.PerspectiveCamera(42, w/h, 0.1, 100);
+      camera.position.set(CAM_POS[0][0], CAM_POS[0][1], CAM_POS[0][2]);
+
+      const renderer = new THREE.WebGLRenderer({antialias:true, alpha:true});
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, 2));
+      renderer.setSize(w,h);
+      renderer.shadowMap.enabled = true;
+      container.appendChild(renderer.domElement);
+
+      if(typeof THREE.OrbitControls==='undefined') throw new Error('THREE.OrbitControls failed to load');
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.target.set(0, 0.15, 0);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.08;
+      controls.minDistance = 4.8;
+      controls.maxDistance = 14;
+      controls.maxPolarAngle = Math.PI/2 - 0.05;
+      controls.enablePan = false;
+      controls.update();
+
+      scene.add(new THREE.HemisphereLight(0xbfd6ec, 0x0b1e33, 0.9));
+      const dir = new THREE.DirectionalLight(0xffffff, 0.95);
+      dir.position.set(5, 8, 4);
+      dir.castShadow = true;
+      dir.shadow.mapSize.set(1024,1024);
+      dir.shadow.camera.left=-5; dir.shadow.camera.right=5;
+      dir.shadow.camera.top=5; dir.shadow.camera.bottom=-5;
+      scene.add(dir);
+
+      const floor = new THREE.Mesh(new THREE.PlaneGeometry(10,10), new THREE.MeshStandardMaterial({color:0x0B1E33, roughness:0.95}));
+      floor.rotation.x = -Math.PI/2;
+      floor.position.y = -0.02;
+      floor.receiveShadow = true;
+      scene.add(floor);
+
+      const boardGroup = new THREE.Group(); scene.add(boardGroup);
+      const pawnGroup = new THREE.Group(); scene.add(pawnGroup);
+      const wallGroup = new THREE.Group(); scene.add(wallGroup);
+
+      // base slab the squares sit on — it shows through the grooves
+      const slab = new THREE.Mesh(
+        new THREE.BoxGeometry(N*PITCH + 0.12, 0.12, N*PITCH + 0.12),
+        new THREE.MeshStandardMaterial({color:0x07131f, roughness:0.9})
+      );
+      slab.position.y = SLAB_TOP - 0.06;
+      slab.receiveShadow = true;
+      boardGroup.add(slab);
+
+      const padGeo = new THREE.BoxGeometry(PAD, PAD_H, PAD);
+      const ringGeo = new THREE.RingGeometry(0.15, 0.22, 28);
+
+      const tiles = {};
+      for(let r=0;r<N;r++){
+        for(let c=0;c<N;c++){
+          const root = new THREE.Group();
+          root.position.set(wx(c), 0, wz(r));
+          root.userData = {r, c, isTile:true};
+          boardGroup.add(root);
+
+          const padMat = new THREE.MeshStandardMaterial({color:PAD_COLORS[(r+c)%2], roughness:0.85, emissive:0x000000, emissiveIntensity:0.28});
+          const pad = new THREE.Mesh(padGeo, padMat);
+          pad.position.y = PAD_H/2;
+          pad.receiveShadow = true; pad.castShadow = true;
+          root.add(pad);
+
+          const ringMat = new THREE.MeshBasicMaterial({color:HIGHLIGHT_COLOR, transparent:true, opacity:0.9, side:THREE.DoubleSide});
+          const ring = new THREE.Mesh(ringGeo, ringMat);
+          ring.rotation.x = -Math.PI/2;
+          ring.position.y = PAD_H + 0.012;
+          ring.visible = false;
+          root.add(ring);
+
+          tiles[key(r,c)] = {root, pad, padMat, ring, ringMat, baseRing:HIGHLIGHT_COLOR};
+        }
+      }
+
+      // hedge placement preview (a flat translucent slab that follows the cursor)
+      const previewMat = new THREE.MeshBasicMaterial({color:OK_COLOR, transparent:true, opacity:0.55});
+      const preview = new THREE.Mesh(new THREE.BoxGeometry(1,1,1), previewMat);
+      preview.visible = false;
+      scene.add(preview);
+
+      let dragStart = null;
+      renderer.domElement.addEventListener('pointerdown', (e)=>{ dragStart = {x:e.clientX, y:e.clientY}; });
+      renderer.domElement.addEventListener('pointerup', (e)=>{
+        if(!dragStart) return;
+        const moved = Math.hypot(e.clientX-dragStart.x, e.clientY-dragStart.y);
+        dragStart = null;
+        if(moved < 6) onBoard3DClick(e);
+        const hint = document.getElementById('rotateHint');
+        if(hint) hint.classList.add('faded');
+      });
+      renderer.domElement.addEventListener('pointermove', onBoard3DHover);
+      renderer.domElement.addEventListener('contextmenu', (e)=>{ if(canWallPlace()){ e.preventDefault(); toggleOrient(); } });
+      renderer.domElement.addEventListener('pointerleave', ()=>{ setHoveredTile(null); if(!pendingSlot) setWallHover(null); });
+      window.addEventListener('resize', resizeThree3D);
+
+      three = {
+        scene, camera, renderer, controls,
+        raycaster: new THREE.Raycaster(), pointer: new THREE.Vector2(),
+        plane: new THREE.Plane(new THREE.Vector3(0,1,0), -PAD_H),
+        tmp: new THREE.Vector3(),
+        tiles, boardGroup, pawnGroup, wallGroup, preview, previewMat,
+        pawns: {}, walls: {}, hoverKey: null,
+        clock: new THREE.Clock(), time: 0
+      };
+
+      function animate(){
+        requestAnimationFrame(animate);
+        try{
+          const dt = Math.min(three.clock.getDelta(), 0.05);
+          three.time += dt;
+          animate3D(dt);
+          controls.update();
+          renderer.render(scene, camera);
+        }catch(err){
+          console.error('3D render loop failed:', err);
+        }
+      }
+      animate();
+    }catch(err){
+      console.error('3D board init failed:', err);
+      threeFailed = true;
+      showThreeFallback('The 3D board failed to load (' + (err.message||'unknown error') + ').');
+    }
+  }
+
+  function showThreeFallback(msg){
+    const container = document.getElementById('board3d');
+    if(!container) return;
+    container.innerHTML = `<div style="display:flex; align-items:center; justify-content:center; height:100%;
+      color:var(--paper-dim); font-size:13px; text-align:center; padding:20px;">${msg}</div>`;
+  }
+
+  function resizeThree3D(){
+    if(!three) return;
+    const container = document.getElementById('board3d');
+    const w = container.clientWidth, h = container.clientHeight;
+    if(w===0||h===0) return;
+    three.camera.aspect = w/h;
+    three.camera.updateProjectionMatrix();
+    three.renderer.setSize(w,h);
+  }
+
+  function applyCameraSide(){
+    if(!three) return;
+    let seat = viewerSeat();
+    if(seat===null) return;
+    if(seat===appliedCam) return;
+    appliedCam = seat;
+    three.camera.position.set(CAM_POS[seat][0], CAM_POS[seat][1], CAM_POS[seat][2]);
+    three.controls.update();
+  }
+
+  // ----- pawn model (turned-wood pawn in the player's colour) -----
+  function buildPawnMesh(seat){
+    const color = hexOf(PLAYER_COLORS[seat]);
+    const group = new THREE.Group();
+    const body = new THREE.Group();
+    group.add(body);
+    const mat = new THREE.MeshStandardMaterial({color, roughness:0.25, metalness:0.35});
+    const accent = new THREE.MeshStandardMaterial({color:0xF3E1B3, roughness:0.3, metalness:0.6});
+    const parts = [
+      [new THREE.CylinderGeometry(0.17, 0.2, 0.05, 20), mat, 0.025],
+      [new THREE.CylinderGeometry(0.13, 0.15, 0.03, 20), accent, 0.065],
+      [new THREE.CylinderGeometry(0.075, 0.125, 0.2, 20), mat, 0.18],
+      [new THREE.CylinderGeometry(0.085, 0.075, 0.025, 16), accent, 0.29],
+      [new THREE.SphereGeometry(0.105, 20, 16), mat, 0.38],
+      [new THREE.ConeGeometry(0.04, 0.08, 14), accent, 0.47]
+    ];
+    parts.forEach(([g,m,y])=>{
+      const mesh = new THREE.Mesh(g, m);
+      mesh.position.y = y;
+      mesh.castShadow = true;
+      body.add(mesh);
+    });
+    body.position.y = PAD_H;
+
+    const ringMat = new THREE.MeshBasicMaterial({color:HIGHLIGHT_COLOR, transparent:true, opacity:0.95, side:THREE.DoubleSide});
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.22, 0.27, 28), ringMat);
+    ring.rotation.x = -Math.PI/2;
+    ring.position.y = PAD_H + 0.014;
+    ring.visible = false;
+    group.add(ring);
+
+    return {root:group, body, ring, ringMat, seat, target:new THREE.Vector3()};
+  }
+
+  // ----- hedge model -----
+  function buildWallMesh(o, ownerSeat){
+    const g = new THREE.Group();
+    const dims = o==='h' ? [WALL_LEN, WALL_H, WALL_T] : [WALL_T, WALL_H, WALL_LEN];
+    const bodyMat = new THREE.MeshStandardMaterial({color:0x2E7D3C, roughness:0.85});
+    const body = new THREE.Mesh(new THREE.BoxGeometry(dims[0], dims[1], dims[2]), bodyMat);
+    body.castShadow = true; body.receiveShadow = true;
+    g.add(body);
+    // leafy blobs along the top
+    const blobMat = new THREE.MeshStandardMaterial({color:0x3C9B4B, roughness:0.9});
+    const blobGeo = new THREE.SphereGeometry(0.095, 10, 8);
+    const count = 5;
+    for(let i=0;i<count;i++){
+      const t = (i/(count-1) - 0.5) * (WALL_LEN - 0.2);
+      const blob = new THREE.Mesh(blobGeo, blobMat);
+      blob.position.set(o==='h' ? t : 0, WALL_H/2 - 0.01, o==='h' ? 0 : t);
+      blob.castShadow = true;
+      g.add(blob);
+    }
+    // owner's colour: a little ribbon on top so everyone knows whose hedge it is
+    const ribMat = new THREE.MeshStandardMaterial({color:hexOf(PLAYER_COLORS[ownerSeat]), emissive:hexOf(PLAYER_COLORS[ownerSeat]), emissiveIntensity:0.45, roughness:0.4});
+    const rib = new THREE.Mesh(
+      new THREE.BoxGeometry(o==='h' ? WALL_LEN*0.5 : 0.04, 0.03, o==='h' ? 0.04 : WALL_LEN*0.5),
+      ribMat
+    );
+    rib.position.y = WALL_H/2 + 0.07;
+    g.add(rib);
+    return g;
+  }
+
+  function disposeTree(obj){
+    obj.traverse(o=>{ if(o.material && o.material.dispose) o.material.dispose(); });
+  }
+
+  function animate3D(dt){
+    const t = three.time;
+    const k = 1 - Math.exp(-dt*8);
+    Object.keys(three.pawns).forEach(s=>{
+      const m = three.pawns[s];
+      const p = m.root.position;
+      p.x += (m.target.x - p.x)*k;
+      p.z += (m.target.z - p.z)*k;
+      const dist = Math.hypot(m.target.x-p.x, m.target.z-p.z);
+      const hop = Math.sin(Math.min(dist/PITCH,1)*Math.PI)*0.22;
+      m.body.position.y = PAD_H + hop;
+      m.ring.scale.setScalar(1 + 0.08*Math.sin(t*5));
+    });
+    const now = performance.now();
+    Object.keys(three.walls).forEach(kk=>{
+      const wm = three.walls[kk];
+      if(wm.drop){
+        const p = Math.min(1, (now - wm.drop.t0)/520);
+        // fall with a small bounce
+        const y = p<0.7 ? 1.3*(1-(p/0.7)*(p/0.7)) : 0.07*Math.sin((p-0.7)/0.3*Math.PI);
+        wm.root.position.y = wm.baseY + Math.max(0,y);
+        if(p>=1){ wm.root.position.y = wm.baseY; wm.drop = null; }
+      }
+    });
+    if(three.preview.visible){
+      three.previewMat.opacity = 0.45 + 0.15*Math.sin(t*6);
+    }
+  }
+
+  // Which hedge slot is the pointer aiming at? The orientation is chosen by the player (wallOrient),
+  // never guessed from the cursor, so the preview can't flip between horizontal and vertical.
+  // A little hysteresis keeps it from jittering between neighbouring slots at the boundary.
+  function slotFromClient(clientX, clientY){
+    if(!three) return null;
+    const rect = three.renderer.domElement.getBoundingClientRect();
+    if(clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom) return null;
+    three.pointer.x = ((clientX-rect.left)/rect.width)*2 - 1;
+    three.pointer.y = -((clientY-rect.top)/rect.height)*2 + 1;
+    three.raycaster.setFromCamera(three.pointer, three.camera);
+    const hit = three.raycaster.ray.intersectPlane(three.plane, three.tmp);
+    if(!hit) return null;
+    const u = (three.tmp.x + BOARD_C)/PITCH;   // column coordinate: squares are centred on integers
+    const v = (three.tmp.z + BOARD_C)/PITCH;   // row coordinate
+    if(u < -0.7 || u > N-0.3 || v < -0.7 || v > N-0.3) return null;
+    const o = wallOrient;
+    if(wallHover && wallHover.o===o){
+      const HYST = 0.14;
+      if(Math.abs(u-(wallHover.c+0.5)) <= 0.5+HYST && Math.abs(v-(wallHover.r+0.5)) <= 0.5+HYST){
+        return {r:wallHover.r, c:wallHover.c, o};
+      }
+    }
+    const c = Math.max(0, Math.min(N-2, Math.floor(u)));
+    const r = Math.max(0, Math.min(N-2, Math.floor(v)));
+    return {r, c, o};
+  }
+  function sameSlot(a,b){ return a && b && a.r===b.r && a.c===b.c && a.o===b.o; }
+
+  function canWallPlace(){
+    return !!state && state.phase==='playing' && isMyTurnToAct() && wallMode;
+  }
+
+  function setWallHover(slot){
+    if(!slot){
+      if(wallHover){ wallHover = null; updatePreview(); }
+      return;
+    }
+    if(sameSlot(wallHover, slot)) return;
+    wallHover = {r:slot.r, c:slot.c, o:slot.o, problem: wallProblem(slot, currentSeat())};
+    updatePreview();
+  }
+  function updatePreview(){
+    if(!three) return;
+    const pv = three.preview;
+    if(!wallHover || !canWallPlace()){ pv.visible = false; return; }
+    const w = wallHover;
+    pv.visible = true;
+    pv.scale.set(w.o==='h' ? WALL_LEN : WALL_T, WALL_H, w.o==='h' ? WALL_T : WALL_LEN);
+    pv.position.set((w.c+0.5)*PITCH - BOARD_C, SLAB_TOP + WALL_H/2, (w.r+0.5)*PITCH - BOARD_C);
+    three.previewMat.color.setHex(w.problem ? BAD_COLOR : OK_COLOR);
+    const hintEl = document.getElementById('modeHint');
+    if(hintEl && !flashTimer){
+      hintEl.textContent = w.problem || 'Click (or release) to place the hedge here.';
+      hintEl.classList.remove('hidden');
+    }
+  }
+
+  function onBoard3DClick(e){
+    if(!three) return;
+    if(canWallPlace()){
+      const slot = slotFromClient(e.clientX, e.clientY);
+      if(!slot) return;
+      const touch = e.pointerType==='touch';
+      if(touch && !sameSlot(pendingSlot, slot)){
+        pendingSlot = slot;
+        setWallHover(slot);
+        return;
+      }
+      pendingSlot = null;
+      const res = doPlaceWall(slot);
+      if(typeof res==='string') flashHint(res);
+      return;
+    }
+    const rect = three.renderer.domElement.getBoundingClientRect();
+    three.pointer.x = ((e.clientX-rect.left)/rect.width)*2 - 1;
+    three.pointer.y = -((e.clientY-rect.top)/rect.height)*2 + 1;
+    three.raycaster.setFromCamera(three.pointer, three.camera);
+    const targets = three.boardGroup.children.concat(three.pawnGroup.children);
+    const hits = three.raycaster.intersectObjects(targets, true);
+    for(const hit of hits){
+      let obj = hit.object;
+      while(obj && !obj.userData.isTile) obj = obj.parent;
+      if(obj && obj.userData.isTile){
+        onTileClick(obj.userData.r, obj.userData.c);
+        return;
+      }
+    }
+  }
+
+  function onBoard3DHover(e){
+    if(!three) return;
+    if(canWallPlace()){
+      setHoveredTile(null);
+      if(dragWall && dragWall.moved) return;
+      lastPointer = {x:e.clientX, y:e.clientY};
+      if(e.pointerType!=='touch') setWallHover(slotFromClient(e.clientX, e.clientY));
+      return;
+    }
+    const rect = three.renderer.domElement.getBoundingClientRect();
+    three.pointer.x = ((e.clientX-rect.left)/rect.width)*2 - 1;
+    three.pointer.y = -((e.clientY-rect.top)/rect.height)*2 + 1;
+    three.raycaster.setFromCamera(three.pointer, three.camera);
+    const hits = three.raycaster.intersectObjects(three.boardGroup.children, true);
+    let hoveredKey = null;
+    for(const hit of hits){
+      let obj = hit.object;
+      while(obj && !obj.userData.isTile) obj = obj.parent;
+      if(obj && obj.userData.isTile){ hoveredKey = key(obj.userData.r, obj.userData.c); break; }
+    }
+    setHoveredTile(hoveredKey);
+  }
+
+  function setHoveredTile(k){
+    if(!three || three.hoverKey===k) return;
+    if(three.hoverKey){
+      const prev = three.tiles[three.hoverKey];
+      if(prev) prev.ringMat.color.setHex(prev.baseRing);
+    }
+    three.hoverKey = k;
+    if(k){
+      const cur = three.tiles[k];
+      if(cur && cur.ring.visible) cur.ringMat.color.setHex(HOVER_COLOR);
+    }
+  }
+
+  function updateBoard3D(){
+    ensureThree();
+    if(!three) return;
+    try{
+      updateBoard3DInner();
+    }catch(err){
+      console.error('3D board update failed:', err);
+    }
+  }
+
+  function updateBoard3DInner(){
+    const live = !!state && state.phase!=='lobby';
+    const n = live ? state.numPlayers : 2;
+    const myTurn = live && state.phase==='playing' && isMyTurnToAct();
+    const seatNow = live && state.phase==='playing' ? currentSeat() : null;
+
+    // ----- squares: goal tint + legal-move rings -----
+    const legal = (myTurn && !wallMode) ? legalPawnMoves(seatNow) : [];
+    for(let r=0;r<N;r++){
+      for(let c=0;c<N;c++){
+        const t = three.tiles[key(r,c)];
+        let tint = 0x000000, intensity = 0;
+        for(let s=0;s<n;s++){
+          if(goalReached(s,r,c)){ tint = hexOf(PLAYER_COLORS[s]); intensity = 0.3; break; }
+        }
+        t.padMat.emissive.setHex(tint);
+        t.padMat.emissiveIntensity = intensity;
+        const hl = legal.some(m=>m.r===r && m.c===c);
+        t.ring.visible = hl;
+        t.baseRing = HIGHLIGHT_COLOR;
+        t.ringMat.color.setHex(HIGHLIGHT_COLOR);
+      }
+    }
+    if(three.hoverKey){
+      const hovered = three.tiles[three.hoverKey];
+      if(hovered && hovered.ring.visible) hovered.ringMat.color.setHex(HOVER_COLOR);
+    }
+
+    // ----- pawns -----
+    const pawnData = live ? state.pawns : [START[0], START[1]];
+    for(let s=0;s<pawnData.length;s++){
+      let m = three.pawns[s];
+      const target = new THREE.Vector3(wx(pawnData[s].c), 0, wz(pawnData[s].r));
+      if(!m){
+        m = buildPawnMesh(s);
+        m.root.position.copy(target);
+        three.pawnGroup.add(m.root);
+        three.pawns[s] = m;
+      }
+      m.target.copy(target);
+      m.root.userData = {r:pawnData[s].r, c:pawnData[s].c, isTile:true};
+      m.ring.visible = seatNow===s;
+    }
+    Object.keys(three.pawns).forEach(s=>{
+      if(parseInt(s,10) >= pawnData.length){
+        const m = three.pawns[s];
+        three.pawnGroup.remove(m.root);
+        disposeTree(m.root);
+        delete three.pawns[s];
+      }
+    });
+
+    // ----- hedges -----
+    const wallsData = live ? state.walls : [];
+    const wantKeys = {};
+    const ev = live ? state.lastEvent : null;
+    wallsData.forEach(w=>{
+      const kk = wallKey(w);
+      wantKeys[kk] = true;
+      if(three.walls[kk]) return;
+      const root = buildWallMesh(w.o, w.p);
+      const baseY = SLAB_TOP + WALL_H/2;
+      root.position.set((w.c+0.5)*PITCH - BOARD_C, baseY, (w.r+0.5)*PITCH - BOARD_C);
+      three.wallGroup.add(root);
+      const animateIn = ev && ev.kind==='wall' && ev.id!==lastEventSeen && ev.r===w.r && ev.c===w.c && ev.o===w.o;
+      const entry = {root, baseY, drop:null};
+      if(animateIn){ entry.drop = {t0:performance.now()}; root.position.y = baseY + 1.3; }
+      three.walls[kk] = entry;
+    });
+    Object.keys(three.walls).forEach(kk=>{
+      if(wantKeys[kk]) return;
+      three.wallGroup.remove(three.walls[kk].root);
+      disposeTree(three.walls[kk].root);
+      delete three.walls[kk];
+    });
+    if(ev) lastEventSeen = ev.id;
+
+    // ----- preview -----
+    if(wallHover) wallHover.problem = canWallPlace() ? wallProblem(wallHover, currentSeat()) : null;
+    updatePreview();
+  }
+
+  // ======================================================================
+  // RENDER
+  // ======================================================================
+  const homeCard = document.getElementById('homeCard');
+  const onlineSetupCard = document.getElementById('onlineSetupCard');
+  const lobbyCard = document.getElementById('lobbyCard');
+  const turnCard = document.getElementById('turnCard');
+  const playersCard = document.getElementById('playersCard');
+  const logCard = document.getElementById('logCard');
+  const overlay = document.getElementById('overlay');
+
+  function hideAllCards(){
+    [homeCard,onlineSetupCard,lobbyCard,turnCard,playersCard,logCard].forEach(el=>el.classList.add('hidden'));
+  }
+  function safeRun(fn, label){
+    try{ fn(); }catch(err){ console.error(`render step "${label}" failed:`, err); }
+  }
+
+  function render(){
+    if(!mode){
+      hideAllCards();
+      homeCard.classList.remove('hidden');
+      overlay.classList.add('hidden');
+      safeRun(updateBoard3D, 'board');
+      safeRun(renderChatWidget, 'chatWidget');
+      stopTurnTicking();
+      return;
+    }
+    if(mode==='online' && !state){
+      hideAllCards();
+      onlineSetupCard.classList.remove('hidden');
+      safeRun(renderOnlineSetup, 'onlineSetup');
+      safeRun(updateBoard3D, 'board');
+      safeRun(renderChatWidget, 'chatWidget');
+      stopTurnTicking();
+      return;
+    }
+    if(!state) return;
+
+    if(state.phase==='lobby'){
+      hideAllCards();
+      lobbyCard.classList.remove('hidden');
+      safeRun(renderLobby, 'lobby');
+      safeRun(updateBoard3D, 'board');
+      overlay.classList.add('hidden');
+      safeRun(renderChatWidget, 'chatWidget');
+      stopTurnTicking();
+      return;
+    }
+
+    if(lastEventSeen===undefined) lastEventSeen = state.lastEvent ? state.lastEvent.id : null;
+    if(!isMyTurnToAct()){ wallMode = false; wallHover = null; pendingSlot = null; if(dragWall) endTrayDrag(); }
+
+    hideAllCards();
+    turnCard.classList.remove('hidden');
+    playersCard.classList.remove('hidden');
+    logCard.classList.remove('hidden');
+
+    safeRun(updateBoard3D, 'board');
+    safeRun(applyCameraSide, 'camera');
+    safeRun(renderTurnCard, 'turnCard');
+    safeRun(renderTray, 'tray');
+    safeRun(renderPlayers, 'players');
+    safeRun(renderLog, 'log');
+    safeRun(renderChatWidget, 'chatWidget');
+    if(state.turnPhaseDeadline && state.phase==='playing') startTurnTicking(); else stopTurnTicking();
+
+    if(state.phase==='gameover'){
+      if(!overlayDismissed){
+        overlay.classList.remove('hidden');
+        const w = state.players[state.winner];
+        const title = document.getElementById('overlayTitle');
+        title.textContent = `${w.name} wins`;
+        title.style.color = w.color;
+        const reason = state.winReason || '';
+        document.getElementById('overlayText').textContent = reason.charAt(0).toUpperCase() + reason.slice(1) + '.';
+      } else {
+        overlay.classList.add('hidden');
+      }
+    } else {
+      overlayDismissed = false;
+      overlay.classList.add('hidden');
+    }
+  }
+
+  function renderOnlineSetup(){
+    const configured = document.getElementById('configuredControls');
+    const notConfigured = document.getElementById('notConfiguredNote');
+    if(FIREBASE_CONFIGURED){
+      configured.classList.remove('hidden');
+      notConfigured.classList.add('hidden');
+    } else {
+      configured.classList.add('hidden');
+      notConfigured.classList.remove('hidden');
+    }
+  }
+
+  function renderLobby(){
+    document.getElementById('lobbyCode').textContent = roomCode;
+    const countPick = document.getElementById('lobbyCountPick');
+    const seatsEl = document.getElementById('lobbySeats');
+    const startBtn = document.getElementById('startOnlineBtn');
+    seatsEl.innerHTML = '';
+
+    if(!state.numPlayers){
+      countPick.classList.remove('hidden');
+      startBtn.classList.add('hidden');
+      document.getElementById('lobbyTimerPick').innerHTML = '';
+      return;
+    }
+    countPick.classList.add('hidden');
+    renderTimerPicker(document.getElementById('lobbyTimerPick'), (secs)=>{
+      mutateRoom(['turnTimerSeconds'], s=>{ s.turnTimerSeconds = secs; });
+    });
+
+    for(let i=0;i<state.numPlayers;i++){
+      const row = document.createElement('div');
+      row.className='seat-row';
+      const chip = document.createElement('div');
+      chip.className='chip';
+      chip.style.background = PLAYER_COLORS[i];
+      row.appendChild(chip);
+
+      if(state.seats[i]){
+        const nm = document.createElement('div');
+        nm.textContent = state.seatNames[i];
+        row.appendChild(nm);
+        if(state.seats[i]===deviceId){
+          const rename = document.createElement('button');
+          rename.className='secondary'; rename.textContent='✎'; rename.title='Change your name';
+          rename.style.cssText='padding:4px 8px; margin-left:8px;';
+          rename.addEventListener('click', ()=> renameSeat(i));
+          row.appendChild(rename);
+          const you = document.createElement('div');
+          you.className='you'; you.textContent='you';
+          row.appendChild(you);
+        }
+      } else {
+        const label = document.createElement('div');
+        label.textContent = `Seat ${i+1} (${SIDE_NAME[i]}) — open`;
+        row.appendChild(label);
+        const claimBtn = document.createElement('button');
+        claimBtn.className='secondary';
+        claimBtn.style.marginLeft='auto';
+        claimBtn.textContent='Join';
+        claimBtn.addEventListener('click', ()=> claimSeat(i));
+        row.appendChild(claimBtn);
+      }
+      seatsEl.appendChild(row);
+    }
+
+    const allClaimed = state.seats.slice(0,state.numPlayers).every(s=>s!==null);
+    startBtn.classList.toggle('hidden', !allClaimed);
+    startBtn.disabled = !(allClaimed && state.seats.indexOf(deviceId)!==-1);
+  }
+
+  function onTileClick(r,c){
+    if(!state || state.phase!=='playing' || !isMyTurnToAct() || wallMode) return;
+    doMovePawn(r,c);
+  }
+
+  function setWallMode(on){
+    if(!state || !isMyTurnToAct()) return;
+    if(on && state.wallsLeft[currentSeat()] <= 0){ flashHint('You have no hedges left.'); return; }
+    wallMode = !!on;
+    wallHover = null; pendingSlot = null;
+    render();
+  }
+
+  function setWallOrient(o){
+    wallOrient = o;
+    wallHover = null; pendingSlot = null;
+    if(canWallPlace() && lastPointer) setWallHover(slotFromClient(lastPointer.x, lastPointer.y));
+    renderTray();
+    updatePreview();
+  }
+  function toggleOrient(){
+    if(!state || !isMyTurnToAct()) return;
+    if(!wallMode){ setWallMode(true); if(!wallMode) return; }
+    setWallOrient(wallOrient==='h' ? 'v' : 'h');
+  }
+  function renderTray(){
+    const tray = document.getElementById('hedgeTray');
+    const show = !!state && state.phase==='playing' && isMyTurnToAct();
+    tray.classList.toggle('hidden', !show);
+    if(!show) return;
+    const none = state.wallsLeft[currentSeat()] <= 0;
+    tray.querySelectorAll('.hedge-piece').forEach(el=>{
+      el.classList.toggle('active', wallMode && el.dataset.o===wallOrient);
+      el.classList.toggle('disabled', none);
+    });
+  }
+
+  // ----- dragging a hedge from the tray onto the board -----
+  function dragOffsetY(e){ return e.pointerType==='touch' ? -56 : 0; } // keep the preview visible above a finger
+  function onTrayPointerDown(e){
+    const piece = e.target.closest('.hedge-piece');
+    if(!piece || !state || !isMyTurnToAct()) return;
+    if(state.wallsLeft[currentSeat()] <= 0){ flashHint('You have no hedges left.'); return; }
+    e.preventDefault();
+    dragWall = {o:piece.dataset.o, moved:false, x0:e.clientX, y0:e.clientY};
+    wallOrient = dragWall.o;
+    wallMode = true; wallHover = null; pendingSlot = null;
+    document.addEventListener('pointermove', onTrayDragMove);
+    document.addEventListener('pointerup', onTrayDragEnd);
+    document.addEventListener('pointercancel', onTrayDragCancel);
+    render();
+  }
+  function onTrayDragMove(e){
+    if(!dragWall) return;
+    if(!dragWall.moved){
+      if(Math.hypot(e.clientX-dragWall.x0, e.clientY-dragWall.y0) < 5) return;
+      dragWall.moved = true;
+      document.body.classList.add('dragging-hedge');
+    }
+    lastPointer = {x:e.clientX, y:e.clientY + dragOffsetY(e)};
+    setWallHover(slotFromClient(lastPointer.x, lastPointer.y));
+  }
+  function endTrayDrag(){
+    document.removeEventListener('pointermove', onTrayDragMove);
+    document.removeEventListener('pointerup', onTrayDragEnd);
+    document.removeEventListener('pointercancel', onTrayDragCancel);
+    document.body.classList.remove('dragging-hedge');
+    dragWall = null;
+  }
+  function onTrayDragEnd(e){
+    if(!dragWall) return;
+    const moved = dragWall.moved;
+    if(moved){
+      lastPointer = {x:e.clientX, y:e.clientY + dragOffsetY(e)};
+      const slot = slotFromClient(lastPointer.x, lastPointer.y);
+      endTrayDrag();
+      if(slot){
+        const res = doPlaceWall(slot);
+        if(typeof res==='string'){ setWallHover(null); flashHint(res); render(); }
+      } else {
+        setWallHover(null);       // dropped off the board: cancel, hedge goes back to the tray
+        render();
+      }
+    } else {
+      endTrayDrag();              // plain click: the hedge is now "in hand" with that orientation
+      render();
+    }
+  }
+  function onTrayDragCancel(){
+    endTrayDrag();
+    setWallHover(null);
+    render();
+  }
+
+  let flashTimer = null;
+  function flashHint(text){
+    const el = document.getElementById('modeHint');
+    el.textContent = text;
+    el.classList.remove('hidden');
+    if(flashTimer) clearTimeout(flashTimer);
+    flashTimer = setTimeout(()=>{ flashTimer = null; renderModeHint(); }, 2600);
+  }
+  function renderModeHint(){
+    const el = document.getElementById('modeHint');
+    if(flashTimer) return;
+    if(state && state.phase==='playing' && isMyTurnToAct() && wallMode){
+      el.textContent = wallHover ? (wallHover.problem || 'Click (or release) to place the hedge here.') : 'Aim at the gap where the hedge should go. R or right-click turns it.';
+      el.classList.remove('hidden');
+    } else {
+      el.classList.add('hidden');
+    }
+  }
+
+  function renderTurnCard(){
+    const label = document.getElementById('phaseLabel');
+    const chip = document.getElementById('turnChip');
+    const name = document.getElementById('turnName');
+    const instr = document.getElementById('turnInstruction');
+    const modeRow = document.getElementById('modeRow');
+    const myTurn = isMyTurnToAct();
+
+    const seat = state.phase==='gameover' ? state.winner : currentSeat();
+    label.textContent = state.phase==='gameover' ? 'Game over' : 'Current turn';
+    chip.style.background = state.players[seat].color;
+    name.textContent = state.players[seat].name;
+
+    if(state.phase==='gameover'){
+      instr.textContent = 'Start a new game to play again.';
+      modeRow.classList.add('hidden');
+    } else if(myTurn){
+      instr.textContent = wallMode
+        ? 'Place a hedge in a gap between squares. It blocks movement across that gap.'
+        : `Click a highlighted square to step toward the ${['top','bottom','right','left'][seat]} edge, or switch to “Place hedge”.`;
+      modeRow.classList.remove('hidden');
+      document.getElementById('modeMoveBtn').classList.toggle('active', !wallMode);
+      const wb = document.getElementById('modeWallBtn');
+      wb.classList.toggle('active', wallMode);
+      wb.textContent = `Place hedge (${state.wallsLeft[seat]})`;
+      wb.disabled = state.wallsLeft[seat] <= 0 && !wallMode;
+    } else {
+      instr.textContent = `Waiting for ${state.players[seat].name}.`;
+      modeRow.classList.add('hidden');
+    }
+    renderModeHint();
+    renderTurnTimer();
+  }
+
+
+  function renderPlayers(){
+    const list = document.getElementById('playersList');
+    list.innerHTML='';
+    const me = viewerSeat();
+    const S = wallSets(state.walls);
+    const cur = state.phase==='playing' ? currentSeat() : -1;
+    for(let i=0;i<state.numPlayers;i++){
+      const pl = state.players[i];
+      const row=document.createElement('div');
+      row.className='player-row';
+      if(i===cur) row.classList.add('active');
+      const chip=document.createElement('div');
+      chip.className='chip'; chip.style.background=pl.color; chip.style.width='12px'; chip.style.height='12px';
+      const nm=document.createElement('div'); nm.className='name';
+      nm.textContent = pl.name + (mode==='online' && me===i ? ' (you)' : '');
+      const dist = shortestDistance(S, i, state.pawns[i].r, state.pawns[i].c);
+      const meta=document.createElement('div'); meta.className='meta';
+      meta.innerHTML = `${state.wallsLeft[i]} hedge${state.wallsLeft[i]===1?'':'s'}<br>${dist} step${dist===1?'':'s'} to go`;
+      row.appendChild(chip); row.appendChild(nm); row.appendChild(meta);
+      list.appendChild(row);
+    }
+  }
+
+  function renderLog(){
+    const logEl = document.getElementById('log');
+    logEl.innerHTML='';
+    (state.log||[]).slice(-30).forEach(entry=>{
+      const d=document.createElement('div');
+      if(entry.win) d.className='win';
+      d.textContent = entry.text;
+      logEl.appendChild(d);
+    });
+  }
+
+  // ---------- chat ----------
+
+
+  // ======================================================================
+  // EVENTS
+  // ======================================================================
+  function resetHomeCard(){
+    homeCard.innerHTML = `
+      <h2>How do you want to play?</h2>
+      <div class="home-btns">
+        <button data-act="local">Play on this device</button>
+        <button class="secondary" data-act="online">Play online with friends</button>
+      </div>`;
+  }
+  function showLocalCountPicker(){
+    homeCard.innerHTML = `
+      <h2>How many players?</h2>
+      <div class="count-btns">
+        <button data-act="count" data-n="2">2 players</button>
+        <button data-act="count" data-n="4">4 players</button>
+      </div>
+      <div style="margin-top:14px;"><button class="secondary" data-act="home">Back</button></div>`;
+  }
+  function showLocalTimerPicker(){
+    homeCard.innerHTML = `
+      <h2>Turn timer</h2>
+      <div id="localTimerPick"></div>
+      <div style="margin-top:14px; display:flex; gap:10px; justify-content:center;">
+        <button class="secondary" data-act="local">Back</button>
+        <button data-act="startLocal">Start game</button>
+      </div>`;
+    const refresh = ()=> renderTimerPicker(document.getElementById('localTimerPick'), secs=>{ localTimerChoice = secs; refresh(); }, localTimerChoice);
+    refresh();
+  }
+  function goOnlineSetup(){
+    mode = 'online';
+    state = null;
+    hideAllCards();
+    onlineSetupCard.classList.remove('hidden');
+    render();
+  }
+  function goHome(){
+    leaveRoomLocally();
+    mode = null; state = null;
+    resetClientBits();
+    resetHomeCard();
+    render();
+  }
+
+  homeCard.addEventListener('click', (e)=>{
+    const btn = e.target.closest('button[data-act]');
+    if(!btn) return;
+    const act = btn.dataset.act;
+    if(act==='local') showLocalCountPicker();
+    else if(act==='count'){ localCount = parseInt(btn.dataset.n,10); showLocalTimerPicker(); }
+    else if(act==='online') goOnlineSetup();
+    else if(act==='home') resetHomeCard();
+    else if(act==='startLocal') startLocalGame(localCount, localTimerChoice);
+  });
+
+  document.getElementById('backHomeBtn').addEventListener('click', goHome);
+  document.getElementById('createRoomBtn').addEventListener('click', createRoom);
+  document.getElementById('joinRoomBtn').addEventListener('click', ()=>{
+    joinRoom(document.getElementById('joinCodeInput').value);
+  });
+  document.getElementById('startOnlineBtn').addEventListener('click', startOnlineGame);
+  lobbyCard.addEventListener('click', (e)=>{
+    const countBtn = e.target.closest('button[data-count]');
+    if(countBtn){
+      const n = parseInt(countBtn.dataset.count,10);
+      mutateRoom(['numPlayers'], s=>{ s.numPlayers = n; });
+    }
+  });
+
+  document.getElementById('copyLinkBtn').addEventListener('click', e=> SG.copyInviteLink(e.currentTarget));
+
+  document.getElementById('hedgeTray').addEventListener('pointerdown', onTrayPointerDown);
+  document.getElementById('modeMoveBtn').addEventListener('click', ()=> setWallMode(false));
+  document.getElementById('modeWallBtn').addEventListener('click', ()=> setWallMode(true));
+  document.addEventListener('keydown', (e)=>{
+    const tag = (e.target && e.target.tagName) || '';
+    if(tag==='INPUT' || tag==='TEXTAREA') return;
+    if(e.key==='w' || e.key==='W') setWallMode(!wallMode);
+    else if(e.key==='r' || e.key==='R') toggleOrient();
+    else if(e.key==='Escape' && wallMode) setWallMode(false);
+  });
+
+  document.getElementById('newGameBtn').addEventListener('click', ()=>{
+    if(mode==='online' && roomRef){
+      if(!confirm('Reset this room for everyone and go back to the lobby?')) return;
+      backToLobby();
+    } else if(mode==='local'){
+      if(state && state.phase==='playing' && !confirm('Abandon this game?')) return;
+      goHome();
+    } else {
+      goHome();
+    }
+  });
+  document.getElementById('overlayBtn').addEventListener('click', ()=>{
+    if(mode==='online' && roomRef) backToLobby();
+    else goHome();
+  });
+  document.getElementById('reviewBtn').addEventListener('click', ()=>{
+    overlayDismissed = true;
+    render();
+  });
+
+
+  // ---------- INIT ----------
+  deviceId = SG.getDeviceId();
+  const urlParams = new URLSearchParams(location.search);
+  const urlRoom = urlParams.get('room');
+  resetHomeCard();
+  render();
+  window.addEventListener('load', ()=>{ updateBoard3D(); resizeThree3D(); });
+  if(urlRoom && FIREBASE_CONFIGURED && fbDb){
+    goOnlineSetup();
+    document.getElementById('joinCodeInput').value = urlRoom;
+    joinRoom(urlRoom);
+  }
+  if(urlParams.has('debug')){
+    window.__hedgeDebug = {
+      get state(){ return state; },
+      move: doMovePawn, wall: doPlaceWall, legal: legalPawnMoves,
+      problem: wallProblem, dist: shortestDistance, sets: wallSets,
+      current: currentSeat, setWallMode, three: ()=>three, setWallOrient, toggleOrient, hover: ()=>wallHover, orient: ()=>wallOrient
+    };
+  }
+})();
+</script>
+</body>
+</html>
