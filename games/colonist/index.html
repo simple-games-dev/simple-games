@@ -10,83 +10,21 @@
 <link rel="stylesheet" href="../../shared/sg.css">
 <script src="../../shared/boot.js" data-libs="firebase"></script>
 <style>
-  :root{
-    --bg-navy:#0B1E33;
-    --bg-panel:#122A46;
-    --grid-line:#2E5C82;
-    --paper:#E9E4D8;
-    --paper-dim:#9FB3C8;
-    --accent:#E8A33D;
-    --accent-soft:#E8A33D33;
-    --danger:#E1604A;
-    --radius-sm:6px;
-    --radius-md:10px;
-    box-sizing:border-box;
-    padding-top:env(safe-area-inset-top,0px);
-    padding-bottom:env(safe-area-inset-bottom,0px);
-  }
-  body{
-    margin:0;
-    background:
-      linear-gradient(var(--grid-line) 1px, transparent 1px) 0 0/40px 40px,
-      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px) 0 0/40px 40px,
-      var(--bg-navy);
-    background-blend-mode:overlay, overlay, normal;
-    color:var(--paper);
-    font-family:'Inter', system-ui, sans-serif;
-    min-height:100%;
-    display:flex; flex-direction:column; align-items:center;
-    padding:24px 14px 40px;
-  }
-  .wrap{width:100%; max-width:1180px;}
-  header{
-    display:flex; align-items:baseline; justify-content:space-between;
-    flex-wrap:wrap; gap:8px 20px; margin-bottom:18px;
-    border-bottom:1px solid var(--grid-line); padding-bottom:12px;
-  }
-  h1{font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:clamp(26px,5vw,36px); margin:0; letter-spacing:0.5px;}
-  h1 a{color:inherit; text-decoration:none; cursor:pointer;}
-  h1 a:hover{opacity:0.85;}
-  .tagline{color:var(--paper-dim); font-size:13px; margin:0;}
   main{display:flex; gap:22px; flex-wrap:wrap; align-items:flex-start; justify-content:center;}
+  .wrap{max-width:1180px;}
   .board-col{flex:2 1 520px; min-width:300px; max-width:680px;}
   .board-wrap{
     position:relative; width:100%; aspect-ratio:1/0.92; border-radius:var(--radius-md);
-    overflow:hidden; border:1px solid var(--grid-line); background:#08192c;
+    overflow:hidden; border:1px solid var(--hair); background:radial-gradient(120% 90% at 50% 0%, #121A33 0%, #080C18 72%);
+    box-shadow:0 0 0 1px rgba(0,0,0,.6), 0 30px 70px -28px rgba(0,0,0,.9), 0 0 80px -30px rgba(139,124,255,.45), inset 0 1px 0 rgba(255,255,255,.07);
   }
   .board-wrap svg{width:100%; height:100%; display:block;}
   .panel-col{flex:1 1 340px; min-width:290px; max-width:400px; display:flex; flex-direction:column; gap:14px;}
-  .card{background:var(--bg-panel); border:1px solid var(--grid-line); border-radius:var(--radius-md); padding:15px 17px;}
-  .home-btns,.count-btns,.preset-grid{display:flex; gap:10px; justify-content:center; flex-wrap:wrap;}
-  .menu-card{text-align:center; padding:30px 18px;}
-  .menu-card p{color:var(--paper-dim); font-size:13px; margin-bottom:18px;}
-  button{
-    font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:13px;
-    background:var(--accent); color:#1a1204; border:none; padding:9px 16px;
-    border-radius:var(--radius-sm); cursor:pointer;
-  }
-  button.danger{background:var(--danger); color:#2a0e08;}
-  button:focus-visible{outline:3px solid #fff; outline-offset:2px;}
-  input[type=text],input[type=number]{
-    font-family:'Inter',sans-serif; font-size:14px; padding:8px 11px; border-radius:var(--radius-sm);
-    border:1px solid var(--grid-line); background:#0F2540; color:var(--paper); width:100%;
-  }
-  .row-gap{display:flex; flex-direction:column; gap:8px; margin-top:12px;}
-  .inline-row{display:flex; gap:8px; align-items:center;}
-  .room-code{font-family:'Space Grotesk',sans-serif; font-size:26px; font-weight:700; letter-spacing:4px;
-    color:var(--accent); text-align:center; margin:4px 0;}
-  .seat-row{display:flex; align-items:center; gap:8px; padding:7px; border-radius:var(--radius-sm);
-    border:1px solid var(--grid-line); margin-bottom:6px; font-size:13px;}
-  .seat-row .swatch{width:12px;height:12px;border-radius:50%; flex:0 0 auto; border:1px solid rgba(255,255,255,0.3);}
-  .seat-row .you{color:var(--accent); font-size:11px; margin-left:auto;}
-  .preset-btn{background:#0F2540; color:var(--paper); border:1px solid var(--grid-line); font-size:12px; padding:8px 10px;
-    border-radius:var(--radius-sm); cursor:pointer; font-family:'Space Grotesk',sans-serif; font-weight:600;}
-  .preset-btn.chosen{background:var(--accent); color:#1a1204; border-color:var(--accent);}
   /* Resource / hand display */
   .hand-row{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:4px;}
   .res-chip{
     flex:1 1 60px; min-width:56px; display:flex; flex-direction:column; align-items:center; gap:2px;
-    background:#0F2540; border:1px solid var(--grid-line); border-radius:var(--radius-sm); padding:7px 4px;
+    background:var(--inset); border:1px solid var(--grid-line); border-radius:var(--radius-sm); padding:7px 4px;
   }
   .res-chip .ico{font-size:16px;}
   .res-chip .amt{font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:15px;}
@@ -99,7 +37,7 @@
   .build-grid{display:grid; grid-template-columns:1fr 1fr; gap:8px;}
   .build-btn{
     display:flex; flex-direction:column; align-items:flex-start; gap:2px; text-align:left;
-    background:#0F2540; border:1px solid var(--grid-line); padding:9px 10px; border-radius:var(--radius-sm);
+    background:var(--inset); border:1px solid var(--grid-line); padding:9px 10px; border-radius:var(--radius-sm);
     cursor:pointer; color:var(--paper);
   }
   .build-btn .bname{font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:12px;}
@@ -116,18 +54,12 @@
   .log div{border-left:2px solid var(--grid-line); padding-left:7px;}
   .dev-card-row{display:flex; gap:6px; flex-wrap:wrap;}
   .dev-card{
-    background:#0F2540; border:1px solid var(--grid-line); border-radius:var(--radius-sm);
+    background:var(--inset); border:1px solid var(--grid-line); border-radius:var(--radius-sm);
     padding:7px 9px; font-size:11px; cursor:pointer; min-width:78px; text-align:center;
   }
   .dev-card:hover{border-color:var(--accent);}
   .dev-card.disabled{opacity:0.4; cursor:not-allowed;}
   .dev-card .dname{font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:11px; display:block;}
-  .overlay{position:fixed; inset:0; background:rgba(6,14,24,0.82); display:flex; align-items:center;
-    justify-content:center; z-index:60; padding:20px;}
-  .overlay-card{background:var(--bg-panel); border:1px solid var(--accent); border-radius:var(--radius-md);
-    padding:28px 26px; text-align:center; max-width:420px; max-height:90vh; overflow-y:auto;}
-  .overlay-card h2{font-family:'Space Grotesk',sans-serif; font-size:22px; margin:0 0 8px;}
-  .overlay-card p{color:var(--paper-dim); font-size:13px; margin:0 0 16px;}
   .turn-banner{display:flex; align-items:center; gap:8px; margin-bottom:8px;}
   .turn-banner .swatch{width:14px;height:14px;border-radius:50%;}
   .turn-banner .tname{font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:16px;}
@@ -135,31 +67,12 @@
   .die{width:38px; height:38px; background:#F5F0E6; color:#1a1204; border-radius:7px; display:flex;
     align-items:center; justify-content:center; font-family:'Space Grotesk',sans-serif; font-weight:800; font-size:18px;
     box-shadow:0 3px 6px rgba(0,0,0,0.4);}
-  .chat-fab{position:fixed; right:20px; bottom:20px; z-index:70; width:54px; height:54px; border-radius:50%;
-    background:var(--accent); color:#1a1204; font-size:22px; display:flex; align-items:center; justify-content:center;
-    box-shadow:0 4px 14px rgba(0,0,0,0.4); border:none; cursor:pointer; padding:0;}
-  .chat-badge{position:absolute; top:-4px; right:-4px; background:var(--danger); color:#fff; font-size:11px; font-weight:700;
-    min-width:18px; height:18px; border-radius:9px; display:flex; align-items:center; justify-content:center; padding:0 4px;}
-  .chat-panel{position:fixed; right:20px; bottom:84px; z-index:70; width:min(300px,calc(100vw - 40px));
-    max-height:min(420px,calc(100vh - 140px)); background:var(--bg-panel); border:1px solid var(--grid-line);
-    border-radius:var(--radius-md); display:flex; flex-direction:column; box-shadow:0 8px 30px rgba(0,0,0,0.5); overflow:hidden;}
-  .chat-panel-header{display:flex; align-items:center; justify-content:space-between; padding:10px 13px;
-    border-bottom:1px solid var(--grid-line); font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:13px;}
-  .chat-close{background:transparent; border:none; color:var(--paper-dim); font-size:15px; padding:2px 6px; cursor:pointer;}
-  .chat-log{flex:1; padding:10px 13px; overflow-y:auto; font-size:12px; display:flex; flex-direction:column; gap:5px; max-height:220px;}
-  .chat-msg.move{color:var(--paper-dim); font-style:italic;}
-  .chat-msg.move.win{color:var(--accent); font-weight:700; font-style:normal;}
-  .chat-offer{border:1px solid var(--accent); border-radius:7px; padding:7px 8px; background:#0F2540;}
+  .chat-offer{border:1px solid var(--accent); border-radius:7px; padding:7px 8px; background:var(--inset);}
   .chat-offer .offer-head{font-weight:700; margin-bottom:3px;}
   .chat-offer .offer-to{color:var(--paper-dim); font-size:10.5px; margin-bottom:5px;}
   .chat-offer .offer-status{color:var(--paper-dim); font-size:10.5px; margin-top:4px;}
   .chat-offer .offer-btns{display:flex; gap:6px; margin-top:5px;}
   .chat-offer .offer-btns button{font-size:11px; padding:4px 8px;}
-  .chat-input-row{display:flex; gap:6px; padding:9px 10px; border-top:1px solid var(--grid-line);}
-  select{
-    font-family:'Inter',sans-serif; font-size:13px; padding:7px 9px; border-radius:var(--radius-sm);
-    border:1px solid var(--grid-line); background:#0F2540; color:var(--paper); width:100%;
-  }
   @media (max-width:900px){ main{flex-direction:column; align-items:stretch;} .board-col,.panel-col{max-width:100%;} }
 </style>
 </head>
@@ -321,7 +234,6 @@
     get deviceId(){ return deviceId; },
     mySeatName: ()=>{ const i = mySeatIndex(); return i>=0 ? (state.seatNames[i] || PLAYER_NAMES[i]) : null; },
     canChat: ()=> mySeatIndex()>=0,
-    gifDefault: 'board game',
     getMessages: ()=>{
       if(!state) return [];
       const all = (state.chat||[]).concat(state.feed||[]);
@@ -344,6 +256,10 @@
   const TERRAIN_COUNTS = {hills:3, forest:4, pasture:4, fields:4, mountains:3, desert:1};
   const NUMBER_TOKENS = [2,3,3,4,4,5,5,6,6,8,8,9,9,10,10,11,11,12];
   const PLAYER_COLORS = ['#E1604A','#3FBF8F','#4A90D9','#E8A33D','#B98CE0','#E077B0'];
+
+  const colorizer = SG.colorizer(PLAYER_COLORS);
+  function colorOf(s,i){ return (s.seatColors && s.seatColors[i]) || colorizer.defaults[i]; }
+  function otherColors(i){ return ((state && state.seatColors) || []).filter((c,j)=> c && j!==i); }
   const PLAYER_NAMES = ['Player 1','Player 2','Player 3','Player 4','Player 5','Player 6'];
   const MAX_PLAYERS = 4;
   const DEV_DECK_SPEC = [
@@ -505,7 +421,9 @@
       phase:'lobby', // lobby, setup, playing, gameover
       numPlayers: numPlayers||0,
       seats: new Array(MAX_PLAYERS).fill(null),
-      seatNames: new Array(MAX_PLAYERS).fill(''),
+      seatNames: ['','','',''],
+      seatColors: [null,null,null,null],       // colour each seated player picked
+      gamesPlayed: 0,           // how many games this room has played (drives seat rotation)
       board: null,
       bank: {brick:19, wood:19, wool:19, wheat:19, ore:19},
       devDeck: [],
@@ -532,12 +450,16 @@
 
 // Everything except chat and the seat lists is written; those have their own safe writers
   // (chat = arrayUnion, seats = transactions), so a move can never wipe a message or a seat.
-  const NEVER_COMMIT = ['chat','seats','seatNames'];
+  const NEVER_COMMIT = ['chat','seats','seatNames','seatColors','gamesPlayed'];
   function commit(){
     if(mode==='online' && roomRef) SG.writeState(roomRef, state, NEVER_COMMIT);
     render();
   }
   // fresh lobby: seats are cleared, the chat history is kept
+  function commitSeats(){
+    if(mode==='online' && roomRef) SG.writeState(roomRef, state, ['chat']);
+    render();
+  }
   function commitReset(){
     if(mode==='online' && roomRef) SG.writeState(roomRef, state, ['chat']);
     render();
@@ -565,6 +487,7 @@ function addLog(text, isWin){ logInto(state, text, isWin); }
   function startLocalGame(numPlayers){
     mode = 'local';
     state = freshState(numPlayers);
+    state.seatColors = SG.getLocalColors(colorizer.defaults, numPlayers);
     for(let i=0;i<numPlayers;i++){
       state.seats[i] = 'local'+i;
       state.seatNames[i] = PLAYER_NAMES[i];
@@ -631,11 +554,12 @@ function addLog(text, isWin){ logInto(state, text, isWin); }
   }
 async function claimSeat(idx){
     if(!state || state.seats[idx]) return;
-    const res = await mutateRoom(['seats','seatNames'], s=>{
+    const res = await mutateRoom(['seats','seatNames','seatColors'], s=>{
       if(s.seats[idx]) return 'That seat was just taken.';
       if(s.seats.indexOf(deviceId)!==-1) return "You're already seated in this room. One browser can only hold one seat.";
       s.seats[idx] = deviceId;
       s.seatNames[idx] = PLAYER_NAMES[idx];
+      SG.assignSeatColor(s, idx, colorizer.defaults);
     });
     if(typeof res==='string') alert(res);
   }
@@ -656,7 +580,7 @@ function renameSeat(idx){
     state.players = [];
     for(let i=0;i<state.numPlayers;i++){
       state.players.push({
-        color: PLAYER_COLORS[i],
+        color: colorOf(state,i),
         name: state.seatNames[i] || PLAYER_NAMES[i],
         hand: {brick:0,wood:0,wool:0,wheat:0,ore:0},
         devCards: [], // {type, boughtTurn, revealed}
@@ -677,8 +601,9 @@ function renameSeat(idx){
   }
 
   function startOnlineGame(){
+    SG.assignSides(state, state.numPlayers);   // random sides the first game, then everyone moves up a seat
     beginSetupPhase();
-    commit();
+    commitSeats();                             // seats moved, so write them too (chat stays untouched)
   }
 
   // ======================================================================
@@ -1344,7 +1269,25 @@ function offerTrade(give, want, recipients){
       .forEach(el=>el.classList.add('hidden'));
   }
 
+  // fireworks + confetti for the winner (and for everyone on a shared screen)
+  function rematchCtx(){
+    return {online: mode==='online' && !!roomRef, roomRef: roomRef, btn: document.getElementById('gameoverBtn'),
+      ids: ((state && state.seats) || []).filter(Boolean), round: state ? (state.gamesPlayed||0) : 0, votes: state && state.rematchVotes};
+  }
+  function resultCtx(){
+    const me = mode==='online' ? mySeatIndex() : -1;
+    return {game:'colonist', over: me>=0 && !!state && state.phase==='gameover', won: (state && state.winner!==null && state.winner!==undefined) ? state.winner===me : null, key: roomCode+':'+(state ? (state.gamesPlayed||0) : 0)};
+  }
+  function celebrateCheck(){
+    SG.live({online: mode==='online' && !!roomRef, roomRef: roomRef, reaction: state && state.reaction, active: !!state, rematch: rematchCtx(), result: resultCtx(), spectator: mode==='online' && !!state && state.phase!=='lobby' && mySeatIndex()<0, myTurn: mode==='online' && !!state && state.phase!=='lobby' && state.phase!=='gameover' && isMyTurn()});
+    const w = (state && state.phase==='gameover' && state.winner!==null && state.winner!==undefined) ? state.winner : null;
+    const me = (mode==='online') ? mySeatIndex() : -1;
+    const mine = mode!=='online' || me<0 || me===w;
+    SG.celebrateOnce(w!==null && mine, {colors: (w!==null && state.players && state.players[w]) ? [state.players[w].color] : []});
+  }
   function render(){
+    colorizer.apply(state ? state.seatColors : null);
+    celebrateCheck();
     if(!mode){
       hideAllCards(); homeCard.classList.remove('hidden');
       safeRun(renderBoard, 'board');
@@ -1481,7 +1424,9 @@ function offerTrade(give, want, recipients){
     for(let i=0;i<state.numPlayers;i++){
       const row = document.createElement('div');
       row.className='seat-row';
-      const sw = document.createElement('div'); sw.className='swatch'; sw.style.background=PLAYER_COLORS[i];
+      const sw = document.createElement('div'); sw.className='swatch'; sw.className='swatch';
+      SG.colorChip(sw, {mine: state.seats[i]===deviceId, current: PLAYER_COLORS[i], used: otherColors(i),
+        onPick: hex=>SG.setSeatColor(roomRef, i, hex, 4)});
       row.appendChild(sw);
       if(state.seats[i]){
         const nm=document.createElement('div'); nm.textContent=state.seatNames[i]; nm.style.flex='1';
@@ -2028,7 +1973,9 @@ function offerTrade(give, want, recipients){
         <button data-n="3">3 players</button>
         <button data-n="4">4 players</button>
       </div>
+      <div id="localColors"></div>
       <div style="margin-top:12px;"><button class="secondary" id="backHomeBtn2">Back</button></div>`;
+    SG.renderLocalColors(document.getElementById('localColors'), colorizer.defaults, 4);
     homeCard.addEventListener('click', (e)=>{
       const btn = e.target.closest('button[data-n]');
       if(btn){ startLocalGame(parseInt(btn.dataset.n,10)); return; }
@@ -2064,8 +2011,11 @@ function offerTrade(give, want, recipients){
     }
   });
   document.getElementById('gameoverBtn').addEventListener('click', ()=>{
+    if(!SG.rematchGate(rematchCtx())) return;
     if(mode==='online' && roomRef){
-      state = freshState(2);
+      const keep = state, fresh = freshState(keep.numPlayers);
+      ['seats','seatNames','seatColors','gamesPlayed'].forEach(k=>{ fresh[k] = keep[k]; });
+      state = fresh;
       commitReset();
     } else {
       mode=null; state=null;

@@ -17,4 +17,5 @@
     w('https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js');
   }
   w(base + 'sg.js');
+  w(base + 'sg-live.js');
 })();

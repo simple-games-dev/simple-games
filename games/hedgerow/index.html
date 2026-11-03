@@ -12,7 +12,7 @@
 <style>
   /* ---------- Hedgerow-specific ---------- */
   .mode-row{display:flex; gap:8px; margin-top:12px;}
-  .mode-btn{flex:1 1 0; padding:9px 8px; font-size:13px; background:#0F2540; color:var(--paper);
+  .mode-btn{flex:1 1 0; padding:9px 8px; font-size:13px; background:var(--inset); color:var(--paper);
     border:1px solid var(--grid-line);}
   .mode-btn.active{background:var(--accent); color:#1a1204; border-color:var(--accent);}
   .player-row .meta{margin-left:auto; color:var(--paper-dim); font-size:12px; text-align:right; line-height:1.35;}
@@ -22,7 +22,7 @@
   .hedge-tray .tray-label{flex:1; font-size:12px; color:var(--paper-dim); line-height:1.4;}
   .hedge-piece{touch-action:none; cursor:grab; user-select:none; -webkit-user-select:none;
     display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px;
-    width:68px; height:68px; border-radius:8px; border:1px solid var(--grid-line); background:#0F2540;
+    width:68px; height:68px; border-radius:8px; border:1px solid var(--grid-line); background:var(--inset);
     font-size:10px; color:var(--paper-dim);}
   .hedge-piece:hover{border-color:var(--accent);}
   .hedge-piece.active{border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-soft); color:var(--paper);}
@@ -186,6 +186,10 @@
   const flash = (msg)=> chat.flash(msg);
 
   const PLAYER_COLORS = ['#E1604A','#3FBF8F','#B98CE0','#5DADE2'];
+
+  const colorizer = SG.colorizer(PLAYER_COLORS);
+  function colorOf(s,i){ return (s.seatColors && s.seatColors[i]) || colorizer.defaults[i]; }
+  function otherColors(i){ return ((state && state.seatColors) || []).filter((c,j)=> c && j!==i); }
   const PLAYER_NAMES = ['Player 1','Player 2','Player 3','Player 4'];
   const N = 9;                       // board is N x N squares
   // Seat -> start square. Seat 0 bottom, 1 top, 2 left, 3 right (2-player games use seats 0 and 1).
@@ -232,6 +236,8 @@
       numPlayers: 0,
       seats: [null,null,null,null],
       seatNames: ['','','',''],
+      seatColors: [null,null,null,null],       // colour each seated player picked
+      gamesPlayed: 0,           // how many games this room has played (drives seat rotation)
       players: [],
       pawns: [],                 // pawns[seat] = {r,c}
       walls: [],                 // {r,c,o:'h'|'v',p}
@@ -285,7 +291,7 @@
     s.pawns = [];
     s.wallsLeft = [];
     for(let i=0;i<n;i++){
-      s.players.push({color:PLAYER_COLORS[i], name: names[i] || PLAYER_NAMES[i]});
+      s.players.push({color:colorOf(s,i), name: names[i] || PLAYER_NAMES[i]});
       s.pawns.push({r:START[i].r, c:START[i].c});
       s.wallsLeft.push(wallsPerPlayer(n));
     }
@@ -305,6 +311,7 @@
     resetClientBits();
     state = freshState();
     state.turnTimerSeconds = timerSeconds || 0;
+    state.seatColors = SG.getLocalColors(colorizer.defaults, n);
     setupNewGame(state, n, []);
     commit();
   }
@@ -392,11 +399,12 @@
   }
 
   async function claimSeat(idx){
-    const res = await mutateRoom(['seats','seatNames'], s=>{
+    const res = await mutateRoom(['seats','seatNames','seatColors'], s=>{
       if(s.seats[idx]) return 'That seat was just taken.';
       if(s.seats.indexOf(deviceId)!==-1) return "You're already seated in this room. Use another browser or device for the next player (or pick “Play on this device”).";
       s.seats[idx] = deviceId;
       s.seatNames[idx] = PLAYER_NAMES[idx];
+      SG.assignSeatColor(s, idx, colorizer.defaults);
     });
     if(res) alert(res);
   }
@@ -409,10 +417,11 @@
     mutateRoom(['seatNames'], s=>{ if(s.seats[idx]!==deviceId) return true; s.seatNames[idx] = clean; });
   }
   function startOnlineGame(){
-    mutateRoom(ALL_GAME_KEYS.concat(['numPlayers']), s=>{
+    mutateRoom(ALL_GAME_KEYS.concat(['numPlayers','seats','seatNames','seatColors','gamesPlayed']), s=>{
       const n = s.numPlayers;
       if(s.phase!=='lobby' || !n) return true;
       for(let i=0;i<n;i++) if(!s.seats[i]) return true;
+      SG.assignSides(s, n);              // random sides the first game, then everyone moves up a seat
       setupNewGame(s, n, s.seatNames);
     });
   }
@@ -1111,7 +1120,25 @@
     try{ fn(); }catch(err){ console.error(`render step "${label}" failed:`, err); }
   }
 
+  // fireworks + confetti for the winner (and for everyone on a shared screen)
+  function rematchCtx(){
+    return {online: mode==='online' && !!roomRef, roomRef: roomRef, btn: document.getElementById('overlayBtn'),
+      ids: ((state && state.seats) || []).filter(Boolean), round: state ? (state.gamesPlayed||0) : 0, votes: state && state.rematchVotes};
+  }
+  function resultCtx(){
+    const me = mode==='online' ? mySeatIndex() : -1;
+    return {game:'hedgerow', over: me>=0 && !!state && state.phase==='gameover', won: (state && state.winner!==null && state.winner!==undefined) ? state.winner===me : null, key: roomCode+':'+(state ? (state.gamesPlayed||0) : 0)};
+  }
+  function celebrateCheck(){
+    SG.live({online: mode==='online' && !!roomRef, roomRef: roomRef, reaction: state && state.reaction, active: !!state, rematch: rematchCtx(), result: resultCtx(), spectator: mode==='online' && !!state && state.phase!=='lobby' && mySeatIndex()<0, myTurn: mode==='online' && !!state && state.phase==='playing' && isMyTurnToAct()});
+    const w = (state && state.phase==='gameover' && state.winner!==null && state.winner!==undefined) ? state.winner : null;
+    const me = (mode==='online') ? mySeatIndex() : -1;
+    const mine = mode!=='online' || me<0 || me===w;
+    SG.celebrateOnce(w!==null && mine, {colors: (w!==null && state.players && state.players[w]) ? [state.players[w].color] : []});
+  }
   function render(){
+    colorizer.apply(state ? state.seatColors : null);
+    celebrateCheck();
     if(!mode){
       hideAllCards();
       homeCard.classList.remove('hidden');
@@ -1213,7 +1240,8 @@
       row.className='seat-row';
       const chip = document.createElement('div');
       chip.className='chip';
-      chip.style.background = PLAYER_COLORS[i];
+      SG.colorChip(chip, {mine: state.seats[i]===deviceId, current: PLAYER_COLORS[i], used: otherColors(i),
+        onPick: hex=>SG.setSeatColor(roomRef, i, hex, 4)});
       row.appendChild(chip);
 
       if(state.seats[i]){
@@ -1458,12 +1486,14 @@
     homeCard.innerHTML = `
       <h2>Turn timer</h2>
       <div id="localTimerPick"></div>
+      <div id="localColors"></div>
       <div style="margin-top:14px; display:flex; gap:10px; justify-content:center;">
         <button class="secondary" data-act="local">Back</button>
         <button data-act="startLocal">Start game</button>
       </div>`;
     const refresh = ()=> renderTimerPicker(document.getElementById('localTimerPick'), secs=>{ localTimerChoice = secs; refresh(); }, localTimerChoice);
     refresh();
+    SG.renderLocalColors(document.getElementById('localColors'), colorizer.defaults, localCount);
   }
   function goOnlineSetup(){
     mode = 'online';
@@ -1530,6 +1560,7 @@
     }
   });
   document.getElementById('overlayBtn').addEventListener('click', ()=>{
+    if(!SG.rematchGate(rematchCtx())) return;
     if(mode==='online' && roomRef) backToLobby();
     else goHome();
   });

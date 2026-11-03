@@ -196,6 +196,10 @@
   const flash = (msg)=> chat.flash(msg);
 
   const PLAYER_COLORS = ['#7FC8F8','#F29BBE'];
+
+  const colorizer = SG.colorizer(PLAYER_COLORS);
+  function colorOf(s,i){ return (s.seatColors && s.seatColors[i]) || colorizer.defaults[i]; }
+  function otherColors(i){ return ((state && state.seatColors) || []).filter((c,j)=> c && j!==i); }
   const PLAYER_NAMES = ['Player 1','Player 2'];
   const N = 6;                       // board is N x N
   const GHOSTS_PER_SIDE = 8;
@@ -269,6 +273,8 @@
       phase: 'lobby',            // lobby, setup, playing, gameover
       seats: [null,null],
       seatNames: ['',''],
+      seatColors: [null,null],       // colour each seated player picked
+      gamesPlayed: 0,           // how many games this room has played (drives seat rotation)
       players: [],
       ghosts: {},                // id -> {owner,r,c}; types are NOT stored here
       ready: [false,false],
@@ -321,7 +327,8 @@
     resetClientBits();
     state = freshState();
     state.turnTimerSeconds = timerSeconds || 0;
-    state.players = [0,1].map(i=>({color:PLAYER_COLORS[i], name:PLAYER_NAMES[i]}));
+    state.seatColors = SG.getLocalColors(colorizer.defaults, 2);
+    state.players = [0,1].map(i=>({color:colorOf(state,i), name:PLAYER_NAMES[i]}));
     state.ghosts = initialGhosts();
     state.localTypes = Object.assign({}, randomTypes(0), randomTypes(1));
     state.localViewer = 0;     // whose roles are currently shown
@@ -417,11 +424,12 @@
   }
 
   async function claimSeat(idx){
-    const res = await mutateRoom(['seats','seatNames'], s=>{
+    const res = await mutateRoom(['seats','seatNames','seatColors'], s=>{
       if(s.seats[idx]) return 'That seat was just taken.';
       if(s.seats.indexOf(deviceId)!==-1) return "You're already seated in this room. Use another browser or device for the second player (or pick “Play on this device”).";
       s.seats[idx] = deviceId;
       s.seatNames[idx] = PLAYER_NAMES[idx];
+      SG.assignSeatColor(s, idx, colorizer.defaults);
     });
     if(res) alert(res);
   }
@@ -435,9 +443,10 @@
   }
 
   function startOnlineGame(){
-    mutateRoom(ALL_GAME_KEYS, s=>{
+    mutateRoom(ALL_GAME_KEYS.concat(['seats','seatNames','seatColors','gamesPlayed']), s=>{
       if(s.phase!=='lobby' || !s.seats[0] || !s.seats[1]) return true;
-      s.players = [0,1].map(i=>({color:PLAYER_COLORS[i], name:s.seatNames[i] || PLAYER_NAMES[i]}));
+      SG.assignSides(s, 2);              // random sides the first game, then the players swap every rematch
+      s.players = [0,1].map(i=>({color:colorOf(s,i), name:s.seatNames[i] || PLAYER_NAMES[i]}));
       s.ghosts = initialGhosts();
       s.ready = [false,false];
       s.captured = {p0:[], p1:[]};
@@ -792,6 +801,8 @@
   const TILE_SPACING = 0.98;
   const BOARD_CENTER = ((N-1) * TILE_SPACING) / 2;
   const PAD_H = 0.15;
+  const three_gateMats = [[],[]];   // materials that carry a player's colour (gates), so a colour change can repaint them
+  let ghostColorSig = '';
   const PAD_COLORS = [0x132C48, 0x183759];
   const HIGHLIGHT_COLOR = 0xE8A33D;
   const CAPTURE_COLOR = 0xE1604A;
@@ -898,6 +909,7 @@
             emissive: isGate ? hexOf(PLAYER_COLORS[gateOwner]) : 0x000000,
             emissiveIntensity: isGate ? 0.3 : 0
           });
+          if(isGate) (three_gateMats[gateOwner] = three_gateMats[gateOwner]||[]).push({mat:padMat, emissiveOnly:true});
           const pad = new THREE.Mesh(geo.pad, padMat);
           pad.position.y = PAD_H/2;
           pad.receiveShadow = true; pad.castShadow = true;
@@ -930,6 +942,7 @@
           root.add(slab);
 
           const frameMat = new THREE.MeshStandardMaterial({color:col, emissive:col, emissiveIntensity:0.55, roughness:0.35, metalness:0.2});
+          (three_gateMats[owner] = three_gateMats[owner]||[]).push({mat:frameMat});
           [-0.33, 0.33].forEach(x=>{
             const p = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.78, 0.09), frameMat);
             p.position.set(x, 0.39, 0); p.castShadow = true; root.add(p);
@@ -937,9 +950,11 @@
           const lintel = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.09, 0.09), frameMat);
           lintel.position.set(0, 0.78, 0); lintel.castShadow = true; root.add(lintel);
 
+          const portalMat = new THREE.MeshBasicMaterial({color:col, transparent:true, opacity:0.2, side:THREE.DoubleSide});
+          (three_gateMats[owner] = three_gateMats[owner]||[]).push({mat:portalMat});
           const portal = new THREE.Mesh(
             new THREE.PlaneGeometry(0.57, 0.72),
-            new THREE.MeshBasicMaterial({color:col, transparent:true, opacity:0.2, side:THREE.DoubleSide})
+            portalMat
           );
           portal.position.set(0, 0.4, 0);
           root.add(portal);
@@ -1250,6 +1265,17 @@
       if(hovered && hovered.ring.visible) hovered.ringMat.color.setHex(HOVER_COLOR);
     }
 
+    // ----- player colours changed (picked in the lobby, or swapped by a rematch): repaint gates, rebuild ghosts -----
+    const colorSig = PLAYER_COLORS.join('|');
+    const colorsChanged = colorSig!==ghostColorSig;
+    if(colorsChanged){
+      ghostColorSig = colorSig;
+      three_gateMats.forEach((list,owner)=>{ (list||[]).forEach(e=>{
+        const h = hexOf(PLAYER_COLORS[owner]);
+        if(e.emissiveOnly) e.mat.emissive.setHex(h); else { e.mat.color.setHex(h); if(e.mat.emissive) e.mat.emissive.setHex(h); }
+      }); });
+    }
+
     // ----- ghosts -----
     const seen = {};
     Object.keys(source).forEach(id=>{
@@ -1259,7 +1285,7 @@
       const typeKey = vt || '?';
       let m = three.ghosts[id];
       const target = new THREE.Vector3(worldX(g.c), 0, worldZ(g.r));
-      if(!m || m.typeKey!==typeKey || m.owner!==g.owner){
+      if(!m || m.typeKey!==typeKey || m.owner!==g.owner || colorsChanged){
         const nm = buildGhostMesh(g.owner, vt);
         nm.root.position.copy(m ? m.root.position : target);
         if(m){ three.ghostGroup.remove(m.root); disposeGhost(m); }
@@ -1314,7 +1340,25 @@
     try{ fn(); }catch(err){ console.error(`render step "${label}" failed:`, err); }
   }
 
+  // fireworks + confetti for the winner (and for everyone on a shared screen)
+  function rematchCtx(){
+    return {online: mode==='online' && !!roomRef, roomRef: roomRef, btn: document.getElementById('overlayBtn'),
+      ids: ((state && state.seats) || []).filter(Boolean), round: state ? (state.gamesPlayed||0) : 0, votes: state && state.rematchVotes};
+  }
+  function resultCtx(){
+    const me = mode==='online' ? mySeatIndex() : -1;
+    return {game:'ghosts', over: me>=0 && !!state && state.phase==='gameover', won: (state && state.winner!==null && state.winner!==undefined) ? state.winner===me : null, key: roomCode+':'+(state ? (state.gamesPlayed||0) : 0)};
+  }
+  function celebrateCheck(){
+    SG.live({online: mode==='online' && !!roomRef, roomRef: roomRef, reaction: state && state.reaction, active: !!state, rematch: rematchCtx(), result: resultCtx(), spectator: mode==='online' && !!state && state.phase!=='lobby' && mySeatIndex()<0, myTurn: mode==='online' && !!state && state.phase==='playing' && isMyTurnToAct()});
+    const w = (state && state.phase==='gameover' && state.winner!==null && state.winner!==undefined) ? state.winner : null;
+    const me = (mode==='online') ? mySeatIndex() : -1;
+    const mine = mode!=='online' || me<0 || me===w;
+    SG.celebrateOnce(w!==null && mine, {colors: (w!==null && state.players && state.players[w]) ? [state.players[w].color] : []});
+  }
   function render(){
+    colorizer.apply(state ? state.seatColors : null);
+    celebrateCheck();
     if(!mode){
       hideAllCards();
       homeCard.classList.remove('hidden');
@@ -1425,7 +1469,8 @@
       row.className='seat-row';
       const chip = document.createElement('div');
       chip.className='chip';
-      chip.style.background = PLAYER_COLORS[i];
+      SG.colorChip(chip, {mine: state.seats[i]===deviceId, current: PLAYER_COLORS[i], used: otherColors(i),
+        onPick: hex=>SG.setSeatColor(roomRef, i, hex, 2)});
       row.appendChild(chip);
 
       if(state.seats[i]){
@@ -1631,12 +1676,14 @@
     homeCard.innerHTML = `
       <h2>Turn timer</h2>
       <div id="localTimerPick"></div>
+      <div id="localColors"></div>
       <div style="margin-top:14px; display:flex; gap:10px; justify-content:center;">
         <button class="secondary" data-act="home">Back</button>
         <button data-act="startLocal">Start game</button>
       </div>`;
     const refresh = ()=> renderTimerPicker(document.getElementById('localTimerPick'), secs=>{ localTimerChoice = secs; refresh(); }, localTimerChoice);
     refresh();
+    SG.renderLocalColors(document.getElementById('localColors'), colorizer.defaults, 2);
   }
   function goOnlineSetup(){
     mode = 'online';
@@ -1689,6 +1736,7 @@
   });
 
   document.getElementById('overlayBtn').addEventListener('click', ()=>{
+    if(!SG.rematchGate(rematchCtx())) return;
     if(mode==='online' && roomRef) backToLobby();
     else goHome();
   });

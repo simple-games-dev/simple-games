@@ -3,217 +3,520 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Simple Games — play with friends in your browser</title>
-<meta name="description" content="A small arcade of free browser board games. No installs, no sign-ups — share a room code and play.">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230B1E33'/%3E%3Cpath d='M16 6l8 5v10l-8 5-8-5V11z' fill='none' stroke='%23E8A33D' stroke-width='2.4' stroke-linejoin='round'/%3E%3Ccircle cx='16' cy='16' r='3' fill='%23E8A33D'/%3E%3C/svg%3E">
+<title>Simple Games — board games, zero setup</title>
+<meta name="description" content="Six hand-built strategy games you can play in the browser with friends. No install, no sign-up.">
+<meta name="theme-color" content="#06080F">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%2306080F'/%3E%3Cpath d='M16 5l9 5.2v10.6L16 26l-9-5.2V10.2z' fill='none' stroke='%23F5B342' stroke-width='2.4' stroke-linejoin='round'/%3E%3Ccircle cx='16' cy='15.5' r='3' fill='%23F5B342'/%3E%3C/svg%3E">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="images/icon-192.png">
+<meta name="theme-color" content="#06080F">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg-navy:#0B1E33; --bg-panel:#122A46; --grid-line:#2E5C82; --paper:#E9E4D8; --paper-dim:#9FB3C8;
-    --accent:#E8A33D; --accent-soft:#E8A33D33; --radius:14px;
+    --bg:#06080F; --ink:#ECEAF4; --dim:#9AA3BD; --mute:#69738F;
+    --amber:#F5B342; --amber2:#FF7A45; --violet:#8B7CFF; --cyan:#46D2F0; --mint:#3FD9A0;
+    --hair:rgba(255,255,255,.09); --glass:rgba(16,23,41,.62);
+    --ease:cubic-bezier(.2,.8,.2,1);
+    --mx:50vw; --my:30vh;
   }
   *{box-sizing:border-box;}
-  html{scroll-behavior:smooth;}
+  html{scroll-behavior:smooth; -webkit-text-size-adjust:100%;}
   body{
-    margin:0; min-height:100vh; color:var(--paper); font-family:'Inter',system-ui,sans-serif;
+    margin:0; background:var(--bg); color:var(--ink); font-family:'Inter',system-ui,sans-serif; -webkit-font-smoothing:antialiased;
+    overflow-x:hidden; line-height:1.5;
+  }
+  ::selection{background:rgba(245,179,66,.35); color:#fff;}
+  a{color:inherit;}
+  img{max-width:100%;}
+  h1,h2,h3{font-family:'Space Grotesk',sans-serif; margin:0;}
+
+  /* ---------- ambient background ---------- */
+  .bg{position:fixed; inset:0; z-index:-3; overflow:hidden; pointer-events:none;
     background:
-      linear-gradient(var(--grid-line) 1px, transparent 1px) 0 0/40px 40px,
-      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px) 0 0/40px 40px,
-      var(--bg-navy);
-    background-blend-mode:overlay, overlay, normal;
-    padding-bottom:env(safe-area-inset-bottom,0);
-  }
-  body::before{ /* soft vignette so the grid fades toward the edges */
-    content:''; position:fixed; inset:0; pointer-events:none;
-    background:radial-gradient(ellipse at 50% 20%, transparent 30%, var(--bg-navy) 95%);
-  }
-  .wrap{position:relative; max-width:1120px; margin:0 auto; padding:0 20px;}
-  nav{display:flex; align-items:center; justify-content:space-between; padding:22px 0;}
-  .brand{display:flex; align-items:center; gap:10px; font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:19px; text-decoration:none; color:var(--paper);}
-  .brand svg{width:30px; height:30px;}
-  .brand span{color:var(--accent);}
-  .gh{color:var(--paper-dim); text-decoration:none; font-size:14px; display:flex; align-items:center; gap:7px; padding:8px 14px; border:1px solid var(--grid-line); border-radius:99px; transition:.15s;}
-  .gh:hover{color:var(--paper); border-color:var(--accent);}
-  .gh svg{width:16px; height:16px; fill:currentColor;}
+      radial-gradient(1100px 640px at 10% -10%, rgba(139,124,255,.22), transparent 62%),
+      radial-gradient(900px 560px at 105% 5%, rgba(245,179,66,.12), transparent 62%),
+      radial-gradient(1000px 700px at 50% 120%, rgba(70,210,240,.10), transparent 62%), var(--bg);}
+  .bg::before{content:""; position:absolute; inset:0;
+    background-image:radial-gradient(rgba(255,255,255,.08) 1px, transparent 1.4px); background-size:28px 28px;
+    -webkit-mask-image:radial-gradient(ellipse 85% 75% at 50% 35%, #000 20%, transparent 80%); mask-image:radial-gradient(ellipse 85% 75% at 50% 35%, #000 20%, transparent 80%);}
+  .orb{position:absolute; border-radius:50%; filter:blur(70px); opacity:.5; will-change:transform;}
+  .orb.a{width:46vmax; height:46vmax; left:-14vmax; top:-18vmax; background:radial-gradient(circle, rgba(139,124,255,.5), transparent 65%); animation:float1 26s ease-in-out infinite alternate;}
+  .orb.b{width:40vmax; height:40vmax; right:-12vmax; top:12vmax; background:radial-gradient(circle, rgba(245,179,66,.32), transparent 65%); animation:float2 32s ease-in-out infinite alternate;}
+  .orb.c{width:36vmax; height:36vmax; left:30vw; bottom:-20vmax; background:radial-gradient(circle, rgba(70,210,240,.28), transparent 65%); animation:float1 38s ease-in-out infinite alternate-reverse;}
+  @keyframes float1{from{transform:translate3d(0,0,0) scale(1);} to{transform:translate3d(8vmax,6vmax,0) scale(1.15);}}
+  @keyframes float2{from{transform:translate3d(0,0,0) scale(1);} to{transform:translate3d(-9vmax,5vmax,0) scale(.9);}}
+  .noise{position:fixed; inset:0; z-index:-2; pointer-events:none; opacity:.05; mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");}
+  .spot{position:fixed; inset:0; z-index:-1; pointer-events:none;
+    background:radial-gradient(520px circle at var(--mx) var(--my), rgba(139,124,255,.13), transparent 60%);}
 
-  .hero{text-align:center; padding:54px 0 40px;}
-  .hero .eyebrow{display:inline-block; font-size:12px; letter-spacing:2px; text-transform:uppercase; color:var(--accent); border:1px solid var(--accent-soft); background:var(--accent-soft); padding:6px 14px; border-radius:99px;}
-  h1{font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:clamp(40px,8vw,76px); line-height:1.02; margin:20px 0 16px; letter-spacing:-1px;}
-  h1 em{font-style:normal; color:var(--accent);}
-  .hero p{max-width:560px; margin:0 auto; color:var(--paper-dim); font-size:clamp(15px,2.2vw,18px); line-height:1.6;}
-  .perks{display:flex; gap:10px 22px; justify-content:center; flex-wrap:wrap; margin-top:26px; font-size:13px; color:var(--paper-dim);}
-  .perks span::before{content:'✓'; color:var(--accent); margin-right:7px; font-weight:700;}
+  .wrap{width:100%; max-width:1180px; margin:0 auto; padding:0 22px;}
 
-  .toolbar{display:flex; gap:10px; flex-wrap:wrap; align-items:center; justify-content:space-between; margin:10px 0 22px;}
-  .chips{display:flex; gap:8px; flex-wrap:wrap;}
-  .chip{font:inherit; font-size:13px; color:var(--paper-dim); background:transparent; border:1px solid var(--grid-line); padding:8px 15px; border-radius:99px; cursor:pointer; transition:.15s;}
-  .chip:hover{color:var(--paper);}
-  .chip.on{background:var(--accent); border-color:var(--accent); color:#1b1200; font-weight:600;}
-  .count{font-size:13px; color:var(--paper-dim);}
+  /* ---------- nav ---------- */
+  .nav{position:sticky; top:14px; z-index:40; margin:14px auto 0; width:min(1136px, calc(100% - 28px));
+    display:flex; align-items:center; justify-content:space-between; padding:9px 12px 9px 18px; border-radius:999px;
+    background:rgba(10,14,26,.6); border:1px solid var(--hair); -webkit-backdrop-filter:blur(18px) saturate(1.4); backdrop-filter:blur(18px) saturate(1.4);
+    box-shadow:0 14px 40px -18px rgba(0,0,0,.8), inset 0 1px 0 rgba(255,255,255,.06);}
+  .brand{display:flex; align-items:center; gap:10px; text-decoration:none; font:700 18px 'Space Grotesk',sans-serif; letter-spacing:-.3px;}
+  .brand svg{width:28px; height:28px; filter:drop-shadow(0 0 10px rgba(245,179,66,.6));}
+  .brand span{background:linear-gradient(100deg,var(--amber),var(--amber2)); -webkit-background-clip:text; background-clip:text; color:transparent; margin-left:-6px;}
+  .nav-links{display:flex; align-items:center; gap:4px;}
+  .nav-links a{font:500 14px 'Inter',sans-serif; color:var(--dim); text-decoration:none; padding:8px 14px; border-radius:99px; transition:color .2s, background .2s;}
+  .nav-links a:hover{color:#fff; background:rgba(255,255,255,.06);}
+  .nav-links a.gh{display:inline-flex; align-items:center; gap:8px; border:1px solid var(--hair); margin-left:6px; color:var(--ink);}
+  .nav-links a.gh svg{width:16px; height:16px; fill:currentColor;}
 
-  .grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:20px;}
-  .game{
-    position:relative; display:flex; flex-direction:column; text-decoration:none; color:inherit;
-    background:linear-gradient(180deg, #153250, var(--bg-panel)); border:1px solid var(--grid-line);
-    border-radius:var(--radius); overflow:hidden; transition:transform .18s, border-color .18s, box-shadow .18s;
-  }
-  .game:hover,.game:focus-visible{transform:translateY(-5px); border-color:var(--accent); box-shadow:0 14px 34px rgba(0,0,0,.45), 0 0 0 1px var(--accent-soft); outline:none;}
-  .art{aspect-ratio:1312/784; position:relative; overflow:hidden; background:#10294a;}
-  .art img{width:100%; height:100%; object-fit:cover; display:block; transition:transform .45s;}
-  .game:hover .art img{transform:scale(1.05);}
-  .art img.fit{object-fit:contain; background:linear-gradient(#13294a,#1f3759);}
-  .body{padding:18px 20px 20px; display:flex; flex-direction:column; gap:10px; flex:1;}
-  .title-row{display:flex; align-items:center; justify-content:space-between; gap:10px;}
-  .game h2{font-family:'Space Grotesk',sans-serif; font-size:23px; margin:0;}
-  .players{font-size:12px; color:var(--paper-dim); white-space:nowrap; display:flex; align-items:center; gap:5px;}
-  .players svg{width:14px; height:14px; fill:currentColor;}
-  .game p{margin:0; color:var(--paper-dim); font-size:14px; line-height:1.55; flex:1;}
-  .tags{display:flex; gap:6px; flex-wrap:wrap;}
-  .tag{font-size:11px; letter-spacing:.4px; padding:4px 10px; border-radius:99px; background:#0B1E33; border:1px solid var(--grid-line); color:var(--paper-dim);}
-  .play{display:flex; align-items:center; justify-content:space-between; margin-top:6px; font-weight:600; font-size:14px; color:var(--accent);}
-  .play span{display:inline-flex; align-items:center; gap:6px; transition:gap .15s;}
-  .game:hover .play span{gap:11px;}
-  .badge-new{position:absolute; top:12px; right:12px; background:var(--accent); color:#1b1200; font-size:11px; font-weight:700; letter-spacing:1px; padding:4px 10px; border-radius:99px; z-index:2;}
+  /* ---------- hero ---------- */
+  .hero{position:relative; text-align:center; padding:clamp(70px,11vw,140px) 0 clamp(40px,6vw,70px);}
+  .eyebrow{display:inline-flex; align-items:center; gap:10px; font:600 12px 'Space Grotesk',sans-serif; letter-spacing:.16em; text-transform:uppercase; color:#FFD58A;
+    padding:8px 16px 8px 14px; border-radius:99px; background:rgba(245,179,66,.08); border:1px solid rgba(245,179,66,.28); -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px);}
+  .eyebrow i{width:7px; height:7px; border-radius:50%; background:var(--mint); box-shadow:0 0 0 0 rgba(63,217,160,.6); animation:ping 2s ease-out infinite;}
+  @keyframes ping{0%{box-shadow:0 0 0 0 rgba(63,217,160,.6);} 80%,100%{box-shadow:0 0 0 10px rgba(63,217,160,0);}}
+  .hero h1{font-weight:700; font-size:clamp(46px,9.4vw,118px); line-height:.94; letter-spacing:-.045em; margin:26px auto 0; max-width:12ch;
+    background:linear-gradient(180deg,#fff 20%,#B9BDD6 100%); -webkit-background-clip:text; background-clip:text; color:transparent;}
+  .hero h1 em{font-style:normal; display:inline-block; background:linear-gradient(100deg,var(--amber) 0%,var(--amber2) 35%,#FF5FA2 60%,var(--violet) 100%); background-size:220% 100%;
+    -webkit-background-clip:text; background-clip:text; color:transparent; animation:shimmer 7s ease-in-out infinite alternate; filter:drop-shadow(0 0 38px rgba(255,122,69,.28));}
+  @keyframes shimmer{from{background-position:0% 50%;} to{background-position:100% 50%;}}
+  .hero p.lead{font-size:clamp(16px,2vw,20px); color:var(--dim); max-width:620px; margin:26px auto 0;}
+  .cta{display:flex; gap:12px; justify-content:center; flex-wrap:wrap; margin-top:34px;}
+  .btn{font:600 15px 'Space Grotesk',sans-serif; text-decoration:none; padding:15px 26px; border-radius:14px; display:inline-flex; align-items:center; gap:10px;
+    transition:transform .2s var(--ease), box-shadow .25s, background .25s, border-color .25s; position:relative;}
+  .btn svg{width:18px; height:18px; transition:transform .25s var(--ease);}
+  .btn.primary{color:#1b1204; background:linear-gradient(180deg,#FFC864,#F2A93A); box-shadow:inset 0 1px 0 rgba(255,255,255,.6), 0 16px 40px -12px rgba(245,179,66,.75), 0 0 0 1px rgba(245,179,66,.3);}
+  .btn.primary:hover{transform:translateY(-2px); box-shadow:inset 0 1px 0 rgba(255,255,255,.7), 0 22px 50px -12px rgba(245,179,66,.95), 0 0 0 1px rgba(245,179,66,.5);}
+  .btn.primary:hover svg{transform:translateY(3px);}
+  .btn.ghost{color:var(--ink); background:rgba(255,255,255,.04); border:1px solid var(--hair); -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px);}
+  .btn.ghost:hover{transform:translateY(-2px); background:rgba(255,255,255,.08); border-color:rgba(255,255,255,.2);}
+  .perks{display:flex; justify-content:center; flex-wrap:wrap; gap:8px 22px; margin-top:34px; font-size:13.5px; color:var(--dim);}
+  .perks span{display:inline-flex; align-items:center; gap:8px;}
+  .perks span::before{content:""; width:16px; height:16px; border-radius:50%; background:rgba(63,217,160,.14) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4.5 8.4l2.3 2.3 4.7-4.9' fill='none' stroke='%233FD9A0' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/cover;}
+
+  /* floating pieces */
+  .pieces{position:absolute; inset:0; pointer-events:none;}
+  .pc{position:absolute; will-change:transform; transition:transform .25s linear;}
+  .pc > svg{display:block; width:100%; height:auto; animation:bob 7s ease-in-out infinite; filter:drop-shadow(0 18px 24px rgba(0,0,0,.55));}
+  .pc:nth-child(2) > svg{animation-duration:9s; animation-delay:-2s;}
+  .pc:nth-child(3) > svg{animation-duration:8s; animation-delay:-4s;}
+  .pc:nth-child(4) > svg{animation-duration:10s; animation-delay:-1s;}
+  .pc:nth-child(5) > svg{animation-duration:7.5s; animation-delay:-3s;}
+  .pc:nth-child(6) > svg{animation-duration:9.5s; animation-delay:-5s;}
+  @keyframes bob{0%,100%{transform:translateY(0) rotate(var(--r,0deg));} 50%{transform:translateY(-16px) rotate(calc(var(--r,0deg) + 4deg));}}
+  .p-die{left:3%; top:14%; width:clamp(64px,8vw,104px); --r:-14deg;}
+  .p-gem{right:4%; top:10%; width:clamp(70px,9vw,118px); --r:10deg;}
+  .p-hex{left:9%; bottom:6%; width:clamp(62px,8vw,100px); --r:8deg;}
+  .p-ghost{right:8%; bottom:8%; width:clamp(58px,7vw,92px); --r:-6deg;}
+  .p-pawn{left:19%; top:9%; width:clamp(40px,5vw,64px); --r:6deg; opacity:.85;}
+  .p-hedge{right:20%; top:10%; width:clamp(54px,6vw,84px); --r:-8deg; opacity:.9;}
+
+  /* ---------- marquee ---------- */
+  .marquee{position:relative; margin:10px 0 0; padding:18px 0; border-block:1px solid var(--hair); background:linear-gradient(180deg,rgba(255,255,255,.025),transparent); overflow:hidden;
+    -webkit-mask-image:linear-gradient(90deg,transparent,#000 12%,#000 88%,transparent); mask-image:linear-gradient(90deg,transparent,#000 12%,#000 88%,transparent);}
+  .track{display:flex; width:max-content; animation:slide 38s linear infinite;}
+  .marquee:hover .track{animation-play-state:paused;}
+  .track span{font:700 clamp(22px,3.2vw,34px) 'Space Grotesk',sans-serif; letter-spacing:-.02em; color:rgba(236,234,244,.22); padding:0 26px; white-space:nowrap; display:inline-flex; align-items:center; gap:52px; transition:color .3s;}
+  .track span:hover{color:var(--amber);}
+  .track span::after{content:"✦"; font-size:.55em; color:rgba(245,179,66,.55);}
+  @keyframes slide{to{transform:translateX(-50%);}}
+
+  /* ---------- section heads ---------- */
+  .rec-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px;}
+  .rec{padding:16px 18px; border-radius:18px; background:var(--panel-glass, rgba(20,24,40,.6)); border:1px solid rgba(255,255,255,.09); backdrop-filter:blur(12px);}
+  .rec b{display:block; font-family:'Space Grotesk',sans-serif; font-size:34px; line-height:1; letter-spacing:-.03em; background:linear-gradient(120deg,#FFD27A,#FF7A45); -webkit-background-clip:text; background-clip:text; color:transparent;}
+  .rec span{display:block; margin-top:6px; font-size:12px; color:var(--dim); text-transform:uppercase; letter-spacing:.08em;}
+  .rec small{display:block; margin-top:8px; font-size:12px; color:var(--dim);}
+  .rec[hidden]{display:none;}
+  .sec{padding:clamp(60px,8vw,110px) 0 0;}
+  .sec-head{display:flex; align-items:flex-end; justify-content:space-between; gap:20px; flex-wrap:wrap; margin-bottom:30px;}
+  .kicker{font:600 12px 'Space Grotesk',sans-serif; letter-spacing:.18em; text-transform:uppercase; color:var(--amber); display:flex; align-items:center; gap:10px; margin-bottom:12px;}
+  .kicker::before{content:""; width:26px; height:2px; background:linear-gradient(90deg,var(--amber),transparent);}
+  .sec-head h2{font-size:clamp(30px,4.6vw,52px); letter-spacing:-.035em; line-height:1.02; max-width:16ch;}
+  .sec-head p{color:var(--dim); max-width:380px; margin:0; font-size:15px;}
+
+  /* filters */
+  .toolbar{display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; margin-bottom:26px;}
+  .chips{display:flex; gap:8px; flex-wrap:wrap; padding:5px; border-radius:99px; background:rgba(255,255,255,.035); border:1px solid var(--hair);}
+  .chip{font:600 13px 'Space Grotesk',sans-serif; color:var(--dim); background:transparent; border:none; padding:9px 16px; border-radius:99px; cursor:pointer; transition:color .2s, background .25s, box-shadow .25s;}
+  .chip:hover{color:#fff;}
+  .chip.on{color:#1b1204; background:linear-gradient(180deg,#FFC864,#F2A93A); box-shadow:0 8px 22px -8px rgba(245,179,66,.8), inset 0 1px 0 rgba(255,255,255,.55);}
+  .count{font:500 13px 'Inter',sans-serif; color:var(--mute);}
+
+  /* ---------- game cards ---------- */
+  .grid{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:22px; perspective:1400px;}
+  .game{position:relative; display:flex; flex-direction:column; text-decoration:none; border-radius:22px; overflow:hidden; isolation:isolate;
+    background:linear-gradient(180deg,rgba(255,255,255,.055),rgba(255,255,255,.015)), var(--glass);
+    -webkit-backdrop-filter:blur(14px); backdrop-filter:blur(14px);
+    border:1px solid var(--hair); box-shadow:0 24px 50px -28px rgba(0,0,0,.9), inset 0 1px 0 rgba(255,255,255,.07);
+    transform-style:preserve-3d; transition:transform .35s var(--ease), box-shadow .35s, opacity .35s;
+    --mx:50%; --my:0%;}
+  .game::before{content:""; position:absolute; inset:0; border-radius:inherit; padding:1.5px; z-index:3; pointer-events:none; opacity:0; transition:opacity .35s;
+    background:radial-gradient(300px circle at var(--mx) var(--my), rgba(245,179,66,.95), rgba(139,124,255,.55) 40%, transparent 72%);
+    -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite:xor; mask-composite:exclude;}
+  .game::after{content:""; position:absolute; inset:0; z-index:2; pointer-events:none; opacity:0; transition:opacity .35s;
+    background:radial-gradient(420px circle at var(--mx) var(--my), rgba(255,255,255,.075), transparent 45%);}
+  .game:hover{box-shadow:0 40px 80px -30px rgba(0,0,0,.95), 0 0 70px -30px rgba(245,179,66,.45), inset 0 1px 0 rgba(255,255,255,.1);}
+  .game:hover::before,.game:hover::after{opacity:1;}
+  .game:focus-visible{outline:2px solid #fff; outline-offset:4px;}
   .game.hide{display:none;}
+  .art{position:relative; aspect-ratio:1312/784; overflow:hidden; background:#080C18;}
+  .art img{width:100%; height:100%; object-fit:cover; display:block; transition:transform .8s var(--ease), filter .5s; transform:scale(1.01);}
+  .game:hover .art img{transform:scale(1.07);}
+  .art::after{content:""; position:absolute; inset:0; background:linear-gradient(180deg,transparent 45%,rgba(8,12,24,.55) 80%,rgba(14,19,36,.96) 100%); pointer-events:none;}
+  .art .meta{position:absolute; left:14px; right:14px; top:14px; display:flex; justify-content:space-between; align-items:flex-start; z-index:2;}
+  .pill{font:600 11.5px 'Space Grotesk',sans-serif; letter-spacing:.04em; color:#fff; padding:6px 11px; border-radius:99px; background:rgba(6,8,15,.6); border:1px solid rgba(255,255,255,.14);
+    -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px); display:inline-flex; align-items:center; gap:6px;}
+  .pill svg{width:13px; height:13px; fill:currentColor;}
+  .pill.new{color:#1b1204; background:linear-gradient(100deg,#FFC864,#FF9A52); border-color:transparent; font-weight:700; letter-spacing:.14em; box-shadow:0 8px 22px -8px rgba(255,150,70,.9);}
+  .body{padding:4px 22px 22px; display:flex; flex-direction:column; gap:12px; flex:1; position:relative; z-index:1; margin-top:-14px;}
+  .game h2{font-size:26px; letter-spacing:-.03em; line-height:1.1;}
+  .game p{margin:0; color:var(--dim); font-size:14.5px; line-height:1.55;}
+  .tags{display:flex; gap:7px; flex-wrap:wrap;}
+  .tag{font:500 12px 'Inter',sans-serif; color:var(--dim); padding:4px 11px; border-radius:99px; background:rgba(255,255,255,.045); border:1px solid var(--hair);}
+  .play{margin-top:auto; padding-top:6px; display:flex; align-items:center; justify-content:space-between; font:600 15px 'Space Grotesk',sans-serif; color:var(--amber);}
+  .play .go{width:38px; height:38px; border-radius:50%; display:grid; place-items:center; color:#1b1204; background:linear-gradient(180deg,#FFC864,#F2A93A); box-shadow:0 10px 24px -8px rgba(245,179,66,.8); transition:transform .35s var(--ease);}
+  .play .go svg{width:16px; height:16px;}
+  .game:hover .go{transform:translateX(4px) scale(1.06);}
+  .game .modes{font:500 12px 'Inter',sans-serif; color:var(--mute); display:flex; gap:12px;}
+  .game .modes b{color:var(--mint); font-weight:600;}
 
-  .how{margin:70px 0 10px; display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:20px;}
-  .how div{padding:22px; border:1px solid var(--grid-line); border-radius:var(--radius); background:rgba(18,42,70,.6);}
-  .how b{display:block; font-family:'Space Grotesk',sans-serif; font-size:30px; color:var(--accent); margin-bottom:6px;}
-  .how h3{margin:0 0 6px; font-family:'Space Grotesk',sans-serif; font-size:18px;}
-  .how p{margin:0; font-size:14px; line-height:1.55; color:var(--paper-dim);}
-  footer{margin-top:60px; padding:26px 0 40px; border-top:1px solid var(--grid-line); display:flex; justify-content:space-between; flex-wrap:wrap; gap:10px; color:var(--paper-dim); font-size:13px;}
-  footer a{color:var(--paper-dim);} footer a:hover{color:var(--accent);}
-  @media (max-width:420px){ .grid{grid-template-columns:1fr;} }
-  @media (prefers-reduced-motion:reduce){ *{transition:none!important;} }
+  /* ---------- how it works ---------- */
+  .steps{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:22px; position:relative;}
+  .step{position:relative; padding:28px 26px 30px; border-radius:22px; background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.012)), var(--glass); border:1px solid var(--hair);
+    -webkit-backdrop-filter:blur(14px); backdrop-filter:blur(14px); box-shadow:inset 0 1px 0 rgba(255,255,255,.07); overflow:hidden;}
+  .step .num{font:700 84px 'Space Grotesk',sans-serif; line-height:.8; letter-spacing:-.06em; background:linear-gradient(180deg,rgba(245,179,66,.9),rgba(245,179,66,.05)); -webkit-background-clip:text; background-clip:text; color:transparent; margin-bottom:18px;}
+  .step h3{font-size:22px; letter-spacing:-.025em; margin-bottom:8px;}
+  .step p{margin:0; color:var(--dim); font-size:14.5px;}
+  .step .vis{margin-top:20px; min-height:46px; display:flex; align-items:center;}
+  .code{font:700 22px 'Space Grotesk',sans-serif; letter-spacing:.3em; padding:9px 16px 9px 20px; color:var(--amber); border:1px dashed rgba(245,179,66,.4); border-radius:12px; background:rgba(245,179,66,.07); text-shadow:0 0 18px rgba(245,179,66,.5);}
+  .avatars{display:flex;}
+  .avatars i{width:38px; height:38px; border-radius:50%; border:2px solid #0D1322; margin-left:-8px; display:grid; place-items:center; font:700 13px 'Space Grotesk',sans-serif; color:#10141f;}
+  .avatars i:first-child{margin-left:0;}
+  .mini-cards{display:flex; gap:8px;}
+  .mini-cards b{width:34px; height:46px; border-radius:7px; border:1px solid var(--hair); background:linear-gradient(180deg,rgba(255,255,255,.1),rgba(255,255,255,.03)); box-shadow:0 8px 16px -8px #000;}
+  .mini-cards b:nth-child(1){transform:rotate(-8deg);} .mini-cards b:nth-child(3){transform:rotate(8deg);}
+  .mini-cards b:nth-child(2){border-color:rgba(245,179,66,.5); background:linear-gradient(180deg,rgba(245,179,66,.3),rgba(245,179,66,.06)); transform:translateY(-4px);}
+
+  /* ---------- features ---------- */
+  .feats{display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:18px;}
+  .feat{padding:24px 22px; border-radius:20px; border:1px solid var(--hair); background:rgba(255,255,255,.025); transition:background .3s, border-color .3s, transform .35s var(--ease);}
+  .feat:hover{background:rgba(255,255,255,.05); border-color:rgba(255,255,255,.16); transform:translateY(-4px);}
+  .feat .ic{width:46px; height:46px; border-radius:14px; display:grid; place-items:center; margin-bottom:16px; background:linear-gradient(140deg,rgba(139,124,255,.28),rgba(245,179,66,.18)); border:1px solid rgba(255,255,255,.12); box-shadow:0 10px 24px -10px rgba(139,124,255,.7);}
+  .feat .ic svg{width:22px; height:22px; stroke:#fff; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round;}
+  .feat h3{font-size:17px; letter-spacing:-.02em; margin-bottom:6px;}
+  .feat p{margin:0; color:var(--dim); font-size:14px;}
+
+  /* ---------- final cta ---------- */
+  .final{margin-top:clamp(70px,9vw,120px); position:relative; text-align:center; padding:clamp(54px,8vw,96px) 24px; border-radius:32px; overflow:hidden; border:1px solid rgba(245,179,66,.28);
+    background:radial-gradient(90% 120% at 50% 0%, rgba(245,179,66,.18), transparent 60%), radial-gradient(70% 90% at 90% 100%, rgba(139,124,255,.22), transparent 60%), rgba(12,17,32,.8);
+    box-shadow:0 40px 100px -40px rgba(245,179,66,.35), inset 0 1px 0 rgba(255,255,255,.1);}
+  .final h2{font-size:clamp(34px,6vw,70px); letter-spacing:-.04em; line-height:1; max-width:14ch; margin:0 auto;}
+  .final p{color:var(--dim); margin:18px auto 30px; max-width:480px; font-size:17px;}
+
+  footer{margin-top:80px; padding:30px 0 50px; border-top:1px solid var(--hair); display:flex; justify-content:space-between; gap:14px; flex-wrap:wrap; color:var(--mute); font-size:13.5px;}
+  footer a{color:var(--dim); text-decoration:none; transition:color .2s;} footer a:hover{color:var(--amber);}
+  .legal{margin-top:-30px; padding-bottom:30px; color:#4C5670; font-size:12px; max-width:760px;}
+
+  /* ---------- reveal on scroll ---------- */
+  .js .rv{opacity:0; transform:translateY(26px); transition:opacity .8s var(--ease), transform .8s var(--ease); transition-delay:var(--d,0s);}
+  .js .rv.in{opacity:1; transform:none;}
+  /* card entrance must not fight the tilt transform */
+  .js .game.rv.in{transition:transform .35s var(--ease), box-shadow .35s, opacity .8s var(--ease);}
+
+  @media (max-width:980px){
+    .grid{grid-template-columns:repeat(2,minmax(0,1fr));}
+    .feats{grid-template-columns:repeat(2,minmax(0,1fr));}
+    .steps{grid-template-columns:1fr;}
+    .p-pawn,.p-hedge{display:none;}
+  }
+  @media (max-width:640px){
+    .nav-links a:not(.gh){display:none;}
+    .grid{grid-template-columns:1fr;}
+    .feats{grid-template-columns:1fr;}
+    .pc{opacity:.5 !important;}
+    .p-die{left:3%; top:auto; bottom:3%;} .p-gem{right:-2%; top:6%;} .p-hex{left:auto; right:30%; bottom:0;} .p-ghost{right:3%; bottom:3%;}
+    .sec-head p{max-width:none;}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation-duration:.001s !important; animation-iteration-count:1 !important; transition-duration:.001s !important;}
+    .js .rv{opacity:1; transform:none;}
+    html{scroll-behavior:auto;}
+  }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <nav>
-    <a class="brand" href="./">
-      <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3l11 6.5v13L16 29 5 22.5v-13z" fill="none" stroke="#E8A33D" stroke-width="2.4" stroke-linejoin="round"/><circle cx="16" cy="16" r="3.4" fill="#E8A33D"/></svg>
-      Simple<span>Games</span>
-    </a>
+<div class="bg" aria-hidden="true"><i class="orb a"></i><i class="orb b"></i><i class="orb c"></i></div>
+<div class="noise" aria-hidden="true"></div>
+<div class="spot" aria-hidden="true"></div>
+
+<nav class="nav" aria-label="Main">
+  <a class="brand" href="./">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3l11 6.5v13L16 29 5 22.5v-13z" fill="none" stroke="#F5B342" stroke-width="2.4" stroke-linejoin="round"/><circle cx="16" cy="16" r="3.4" fill="#F5B342"/></svg>
+    Simple<span>Games</span>
+  </a>
+  <div class="nav-links">
+    <a href="#games">Games</a>
+    <a href="#how">How it works</a>
+    <a href="#why">Why it's nice</a>
     <a class="gh" href="https://github.com/simple-games-dev" target="_blank" rel="noopener">
       <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 0 1 4 0c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
       GitHub
     </a>
-  </nav>
-
-  <header class="hero">
-    <span class="eyebrow">Free · Browser · Multiplayer</span>
-    <h1>Board games,<br><em>zero setup.</em></h1>
-    <p>Six hand-built strategy games. Pick one, share a room code with your friends, and play — on the couch or across the world.</p>
-    <div class="perks"><span>No install</span><span>No sign-up</span><span>Online rooms + same-screen play</span><span>Works on phones</span></div>
-  </header>
-
-  <div class="toolbar">
-    <div class="chips" id="chips" role="tablist" aria-label="Filter games">
-      <button class="chip on" data-f="all">All games</button>
-      <button class="chip" data-f="strategy">Strategy</button>
-      <button class="chip" data-f="classic">Classic</button>
-      <button class="chip" data-f="hidden">Hidden info</button>
-      <button class="chip" data-f="3d">3D</button>
-    </div>
-    <div class="count" id="count">6 games</div>
   </div>
+</nav>
 
-  <main class="grid" id="grid">
+<div class="wrap">
+  <header class="hero">
+    <div class="pieces" aria-hidden="true">
+      <!-- die -->
+      <div class="pc p-die" data-d="22"><svg viewBox="0 0 100 100"><defs><linearGradient id="gd" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FF8A5B"/><stop offset="1" stop-color="#D93F5C"/></linearGradient></defs>
+        <rect x="8" y="8" width="84" height="84" rx="20" fill="url(#gd)"/><rect x="8" y="8" width="84" height="84" rx="20" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="2"/>
+        <path d="M14 22q0-8 8-8h56" stroke="rgba(255,255,255,.55)" stroke-width="3" fill="none" stroke-linecap="round"/>
+        <g fill="#fff"><circle cx="30" cy="30" r="7"/><circle cx="70" cy="30" r="7"/><circle cx="50" cy="50" r="7"/><circle cx="30" cy="70" r="7"/><circle cx="70" cy="70" r="7"/></g></svg></div>
+      <!-- gem -->
+      <div class="pc p-gem" data-d="-30"><svg viewBox="0 0 100 100"><defs><linearGradient id="g1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7DF0FF"/><stop offset="1" stop-color="#4A7DFF"/></linearGradient></defs>
+        <polygon points="50,6 86,34 50,94 14,34" fill="url(#g1)"/>
+        <polygon points="50,6 68,34 50,94 32,34" fill="rgba(255,255,255,.28)"/><polygon points="14,34 32,34 50,94" fill="rgba(0,0,40,.22)"/><polygon points="86,34 68,34 50,94" fill="rgba(0,0,40,.12)"/>
+        <polygon points="50,6 86,34 14,34" fill="rgba(255,255,255,.22)"/><polygon points="50,6 86,34 50,94 14,34" fill="none" stroke="rgba(255,255,255,.55)" stroke-width="2" stroke-linejoin="round"/></svg></div>
+      <!-- hex tile -->
+      <div class="pc p-hex" data-d="26"><svg viewBox="0 0 100 100"><defs><linearGradient id="gh" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6FD38B"/><stop offset="1" stop-color="#2E8F57"/></linearGradient></defs>
+        <polygon points="50,6 88,28 88,72 50,94 12,72 12,28" fill="url(#gh)" stroke="rgba(255,255,255,.5)" stroke-width="2.5" stroke-linejoin="round"/>
+        <circle cx="50" cy="50" r="19" fill="#F3EBD6"/><text x="50" y="58" text-anchor="middle" font-family="Space Grotesk,sans-serif" font-weight="700" font-size="24" fill="#D8352A">8</text></svg></div>
+      <!-- ghost -->
+      <div class="pc p-ghost" data-d="-24"><svg viewBox="0 0 100 100"><defs><linearGradient id="gg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#F4F2FF"/><stop offset="1" stop-color="#9C8CFF"/></linearGradient></defs>
+        <path d="M18 92V46C18 24 32 10 50 10s32 14 32 36v46l-10.7-9-10.7 9-10.6-9-10.7 9-10.6-9z" fill="url(#gg)" stroke="rgba(255,255,255,.55)" stroke-width="2" stroke-linejoin="round"/>
+        <ellipse cx="39" cy="44" rx="6" ry="8" fill="#1a1633"/><ellipse cx="61" cy="44" rx="6" ry="8" fill="#1a1633"/><circle cx="41" cy="41" r="2" fill="#fff"/><circle cx="63" cy="41" r="2" fill="#fff"/><ellipse cx="50" cy="62" rx="5" ry="3.4" fill="#1a1633"/></svg></div>
+      <!-- pawn -->
+      <div class="pc p-pawn" data-d="16"><svg viewBox="0 0 100 100"><defs><linearGradient id="gp" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F3EBD6"/><stop offset="1" stop-color="#B9A98A"/></linearGradient></defs>
+        <circle cx="50" cy="26" r="15" fill="url(#gp)"/><path d="M38 44h24c0 14 8 20 12 34H26c4-14 12-20 12-34z" fill="url(#gp)"/><rect x="20" y="78" width="60" height="12" rx="6" fill="url(#gp)"/></svg></div>
+      <!-- hedge -->
+      <div class="pc p-hedge" data-d="-18"><svg viewBox="0 0 120 70"><defs><linearGradient id="gv" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#58D07A"/><stop offset="1" stop-color="#1E7A43"/></linearGradient></defs>
+        <rect x="6" y="16" width="108" height="46" rx="20" fill="url(#gv)"/><g fill="#6BE08C"><circle cx="22" cy="20" r="14"/><circle cx="46" cy="14" r="15"/><circle cx="72" cy="15" r="15"/><circle cx="98" cy="20" r="14"/></g>
+        <rect x="6" y="16" width="108" height="46" rx="20" fill="none" stroke="rgba(255,255,255,.3)" stroke-width="2"/></svg></div>
+    </div>
 
-    <!-- Merchants -->
-    <a class="game" href="games/merchants/" data-t="strategy" data-name="Gem Merchants">
-      <span class="badge-new">NEW</span>
-      <div class="art"><img src="images/merchants.jpg" alt="Gem Merchants cards and gems" width="1312" height="784" loading="lazy"></div>
-      <div class="body">
-        <div class="title-row"><h2>Gem Merchants</h2><span class="players"><svg viewBox="0 0 16 16"><circle cx="8" cy="5" r="3"/><path d="M2 14c0-3 3-5 6-5s6 2 6 5z"/></svg>2–4</span></div>
-        <p>Collect gems, buy cards that discount your next purchase, and lure nobles to your court. First to 15 prestige triggers the final round.</p>
-        <div class="tags"><span class="tag">Engine building</span><span class="tag">Card game</span></div>
-        <div class="play"><span>Play now <b>→</b></span></div>
+    <span class="eyebrow rv"><i></i>Free · Browser · Multiplayer</span>
+    <h1 class="rv" style="--d:.08s">Game night,<br><em>zero setup.</em></h1>
+    <p class="lead rv" style="--d:.16s">Six hand-built strategy games. Pick one, share a room code, and play with friends — across the table or across the world.</p>
+    <div class="cta rv" style="--d:.24s">
+      <a class="btn primary" href="#games">Pick a game
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12l7 7 7-7"/></svg></a>
+      <a class="btn ghost" href="#how">How it works</a>
+    </div>
+    <div class="perks rv" style="--d:.32s"><span>No install</span><span>No sign-up</span><span>Online rooms + same-screen play</span><span>Works on phones</span></div>
+  </header>
+</div>
+
+<div class="marquee" aria-hidden="true">
+  <div class="track">
+    <span>Gem Merchants</span><span>Ascent</span><span>Hedgerow</span><span>Ghosts</span><span>Colonist</span><span>Tempo Chess</span>
+    <span>Gem Merchants</span><span>Ascent</span><span>Hedgerow</span><span>Ghosts</span><span>Colonist</span><span>Tempo Chess</span>
+  </div>
+</div>
+
+<div class="wrap">
+  <section class="sec" id="games" aria-label="Games">
+    <div class="sec-head rv">
+      <div><div class="kicker">The lineup</div><h2>Pick your table.</h2></div>
+      <p>Every game runs right in your browser, with online rooms, same-screen play and live chat built in.</p>
+    </div>
+
+    <div class="toolbar rv">
+      <div class="chips" id="chips" role="tablist" aria-label="Filter games">
+        <button class="chip on" data-f="all">All games</button>
+        <button class="chip" data-f="strategy">Strategy</button>
+        <button class="chip" data-f="classic">Classic</button>
+        <button class="chip" data-f="hidden">Hidden info</button>
+        <button class="chip" data-f="3d">3D</button>
       </div>
-    </a>
+      <div class="count" id="count">6 games</div>
+    </div>
 
-    <!-- Ascent -->
-    <a class="game" href="games/ascent/" data-t="strategy 3d" data-name="Ascent">
-      <div class="art"><img src="images/ascent.jpg" alt="Ascent tower board" width="1312" height="784" loading="lazy"></div>
-      <div class="body">
-        <div class="title-row"><h2>Ascent</h2><span class="players"><svg viewBox="0 0 16 16"><circle cx="8" cy="5" r="3"/><path d="M2 14c0-3 3-5 6-5s6 2 6 5z"/></svg>2–3</span></div>
-        <p>Climb three storeys or be the last builder standing. Move, build, and out-think your rivals on a shifting 3D tower.</p>
-        <div class="tags"><span class="tag">Abstract</span><span class="tag">3D board</span></div>
-        <div class="play"><span>Play now <b>→</b></span></div>
-      </div>
-    </a>
+    <main class="grid" id="grid">
 
-    <!-- Hedgerow -->
-    <a class="game" href="games/hedgerow/" data-t="strategy 3d" data-name="Hedgerow">
-      <div class="art"><img src="images/hedgerow.jpg" alt="Hedgerow board with hedges" width="1312" height="784" loading="lazy"></div>
-      <div class="body">
-        <div class="title-row"><h2>Hedgerow</h2><span class="players"><svg viewBox="0 0 16 16"><circle cx="8" cy="5" r="3"/><path d="M2 14c0-3 3-5 6-5s6 2 6 5z"/></svg>2–4</span></div>
-        <p>Race your pawn across the garden — or grow hedges to wall your rivals in. Drag hedges onto the board, but never trap anyone completely.</p>
-        <div class="tags"><span class="tag">Race</span><span class="tag">Maze</span><span class="tag">3D board</span></div>
-        <div class="play"><span>Play now <b>→</b></span></div>
-      </div>
-    </a>
+      <a class="game rv" href="games/merchants/" data-t="strategy" data-name="Gem Merchants">
+        <div class="art"><img src="images/merchants.jpg" alt="Gem Merchants cards and gems" width="1312" height="784" loading="lazy">
+          <div class="meta"><span class="pill new">NEW</span><span class="pill"><svg viewBox="0 0 16 16"><circle cx="8" cy="5" r="3"/><path d="M2 14c0-3 3-5 6-5s6 2 6 5z"/></svg>2–4</span></div></div>
+        <div class="body">
+          <h2>Gem Merchants</h2>
+          <p>Collect gems, buy cards that discount your next purchase, and lure nobles to your court. First to 15 prestige triggers the final round.</p>
+          <div class="tags"><span class="tag">Engine building</span><span class="tag">Card game</span></div>
+          <div class="play"><span>Play now</span><span class="go"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></div>
+        </div>
+      </a>
 
-    <!-- Ghosts -->
-    <a class="game" href="games/ghosts/" data-t="strategy hidden 3d" data-name="Ghosts">
-      <div class="art"><img src="images/ghosts.jpg" alt="Ghosts" width="1312" height="784" loading="lazy"></div>
-      <div class="body">
-        <div class="title-row"><h2>Ghosts</h2><span class="players"><svg viewBox="0 0 16 16"><circle cx="8" cy="5" r="3"/><path d="M2 14c0-3 3-5 6-5s6 2 6 5z"/></svg>2</span></div>
-        <p>Each side fields good and poisoned ghosts — and only you know which is which. Capture wisely, then slip a good ghost across the board.</p>
-        <div class="tags"><span class="tag">Bluffing</span><span class="tag">Hidden roles</span><span class="tag">3D board</span></div>
-        <div class="play"><span>Play now <b>→</b></span></div>
-      </div>
-    </a>
+      <a class="game rv" style="--d:.08s" href="games/ascent/" data-t="strategy 3d" data-name="Ascent">
+        <div class="art"><img src="images/ascent.jpg" alt="Ascent tower board" width="1312" height="784" loading="lazy">
+          <div class="meta"><span class="pill">3D</span><span class="pill"><svg viewBox="0 0 16 16"><circle cx="8" cy="5" r="3"/><path d="M2 14c0-3 3-5 6-5s6 2 6 5z"/></svg>2–3</span></div></div>
+        <div class="body">
+          <h2>Ascent</h2>
+          <p>Climb three storeys or be the last builder standing. Move, build, and out-think your rivals on a shifting 3D tower.</p>
+          <div class="tags"><span class="tag">Abstract</span><span class="tag">3D board</span></div>
+          <div class="play"><span>Play now</span><span class="go"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></div>
+        </div>
+      </a>
 
-    <!-- Colonist -->
-    <a class="game" href="games/colonist/" data-t="strategy" data-name="Colonist">
-      <div class="art"><img src="images/colonist.jpg" alt="Colonist hex board" width="1312" height="784" loading="lazy"></div>
-      <div class="body">
-        <div class="title-row"><h2>Colonist</h2><span class="players"><svg viewBox="0 0 16 16"><circle cx="8" cy="5" r="3"/><path d="M2 14c0-3 3-5 6-5s6 2 6 5z"/></svg>2–4</span></div>
-        <p>Settle the island. Roll for resources, trade with friends, build roads and cities, and out-race everyone to 10 points.</p>
-        <div class="tags"><span class="tag">Trading</span><span class="tag">Dice</span><span class="tag">Classic feel</span></div>
-        <div class="play"><span>Play now <b>→</b></span></div>
-      </div>
-    </a>
+      <a class="game rv" style="--d:.16s" href="games/hedgerow/" data-t="strategy 3d" data-name="Hedgerow">
+        <div class="art"><img src="images/hedgerow.jpg" alt="Hedgerow board with hedges" width="1312" height="784" loading="lazy">
+          <div class="meta"><span class="pill">3D</span><span class="pill"><svg viewBox="0 0 16 16"><circle cx="8" cy="5" r="3"/><path d="M2 14c0-3 3-5 6-5s6 2 6 5z"/></svg>2–4</span></div></div>
+        <div class="body">
+          <h2>Hedgerow</h2>
+          <p>Race your pawn across the garden — or grow hedges to wall your rivals in. Drag hedges onto the board, but never trap anyone completely.</p>
+          <div class="tags"><span class="tag">Race</span><span class="tag">Maze</span><span class="tag">3D board</span></div>
+          <div class="play"><span>Play now</span><span class="go"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></div>
+        </div>
+      </a>
 
-    <!-- Chess -->
-    <a class="game" href="games/chess/" data-t="classic strategy" data-name="Tempo Chess">
-      <div class="art"><img class="fit" src="images/chess.jpg" alt="Tempo Chess knight and clock" width="1312" height="784" loading="lazy"></div>
-      <div class="body">
-        <div class="title-row"><h2>Tempo Chess</h2><span class="players"><svg viewBox="0 0 16 16"><circle cx="8" cy="5" r="3"/><path d="M2 14c0-3 3-5 6-5s6 2 6 5z"/></svg>2</span></div>
-        <p>The classic, with the clock running. Online or over the board, with premoves, move highlights and a sudden-death finish.</p>
-        <div class="tags"><span class="tag">Classic</span><span class="tag">Timed</span></div>
-        <div class="play"><span>Play now <b>→</b></span></div>
-      </div>
-    </a>
+      <a class="game rv" href="games/ghosts/" data-t="strategy hidden 3d" data-name="Ghosts">
+        <div class="art"><img src="images/ghosts.jpg" alt="Ghosts" width="1312" height="784" loading="lazy">
+          <div class="meta"><span class="pill">3D · Hidden roles</span><span class="pill"><svg viewBox="0 0 16 16"><circle cx="8" cy="5" r="3"/><path d="M2 14c0-3 3-5 6-5s6 2 6 5z"/></svg>2</span></div></div>
+        <div class="body">
+          <h2>Ghosts</h2>
+          <p>Each side fields good and poisoned ghosts — and only you know which is which. Capture wisely, then slip a good ghost across the board.</p>
+          <div class="tags"><span class="tag">Bluffing</span><span class="tag">Hidden roles</span><span class="tag">3D board</span></div>
+          <div class="play"><span>Play now</span><span class="go"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></div>
+        </div>
+      </a>
 
-  </main>
+      <a class="game rv" style="--d:.08s" href="games/colonist/" data-t="strategy" data-name="Colonist">
+        <div class="art"><img src="images/colonist.jpg" alt="Colonist hex board" width="1312" height="784" loading="lazy">
+          <div class="meta"><span class="pill">Trading</span><span class="pill"><svg viewBox="0 0 16 16"><circle cx="8" cy="5" r="3"/><path d="M2 14c0-3 3-5 6-5s6 2 6 5z"/></svg>2–4</span></div></div>
+        <div class="body">
+          <h2>Colonist</h2>
+          <p>Settle the island. Roll for resources, trade with friends, build roads and cities, and out-race everyone to 10 points.</p>
+          <div class="tags"><span class="tag">Trading</span><span class="tag">Dice</span><span class="tag">Classic feel</span></div>
+          <div class="play"><span>Play now</span><span class="go"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></div>
+        </div>
+      </a>
 
-  <section class="how" aria-label="How it works">
-    <div><b>1</b><h3>Pick a game</h3><p>Every game has its own rules summary right on the page — no manuals to download.</p></div>
-    <div><b>2</b><h3>Create a room</h3><p>Choose the player count and an optional turn timer, then copy the invite link.</p></div>
-    <div><b>3</b><h3>Play together</h3><p>Friends join from any browser. Prefer one screen? Every game also has a same-device mode.</p></div>
+      <a class="game rv" style="--d:.16s" href="games/chess/" data-t="classic strategy" data-name="Tempo Chess">
+        <div class="art"><img src="images/chess.jpg" alt="Tempo Chess knight and clock" width="1312" height="784" loading="lazy">
+          <div class="meta"><span class="pill">Timed</span><span class="pill"><svg viewBox="0 0 16 16"><circle cx="8" cy="5" r="3"/><path d="M2 14c0-3 3-5 6-5s6 2 6 5z"/></svg>2</span></div></div>
+        <div class="body">
+          <h2>Tempo Chess</h2>
+          <p>The classic, with the clock running. Online or over the board, with premoves, move highlights and a sudden-death finish.</p>
+          <div class="tags"><span class="tag">Classic</span><span class="tag">Timed</span></div>
+          <div class="play"><span>Play now</span><span class="go"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></div>
+        </div>
+      </a>
+
+    </main>
+  </section>
+
+  <section class="sec" id="record" aria-label="Your record" hidden>
+    <div class="sec-head rv">
+      <div><div class="kicker">Your record</div><h2>Bragging rights.</h2></div>
+      <p>Saved on this device from your online games. Nobody else can see it.</p>
+    </div>
+    <div class="rec-grid rv" id="recGrid"></div>
+  </section>
+
+  <section class="sec" id="how" aria-label="How it works">
+    <div class="sec-head rv">
+      <div><div class="kicker">How it works</div><h2>From zero to playing in a minute.</h2></div>
+      <p>No accounts, no downloads, no manuals. Every game has its rules one click away on the page.</p>
+    </div>
+    <div class="steps">
+      <div class="step rv"><div class="num">1</div><h3>Pick a game</h3><p>Choose from strategy, classics and hidden-role bluffers. Each one has a quick rules summary built in.</p>
+        <div class="vis"><div class="mini-cards"><b></b><b></b><b></b></div></div></div>
+      <div class="step rv" style="--d:.1s"><div class="num">2</div><h3>Create a room</h3><p>Choose the player count and an optional turn timer, then send your friends the invite link.</p>
+        <div class="vis"><span class="code">K7P3Q</span></div></div>
+      <div class="step rv" style="--d:.2s"><div class="num">3</div><h3>Play together</h3><p>Friends join from any browser and pick a seat. Prefer one screen? Every game also has a same-device mode.</p>
+        <div class="vis"><div class="avatars"><i style="background:#F0614F">A</i><i style="background:#3FD9A0">B</i><i style="background:#B98CE0">C</i><i style="background:#F5B342">D</i></div></div></div>
+    </div>
+  </section>
+
+  <section class="sec" id="why" aria-label="Why it's nice">
+    <div class="sec-head rv">
+      <div><div class="kicker">Built with care</div><h2>Small details, done properly.</h2></div>
+      <p>The boring parts are handled once and shared by every game, so each one just feels right.</p>
+    </div>
+    <div class="feats">
+      <div class="feat rv"><div class="ic"><svg viewBox="0 0 24 24"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg></div><h3>Instant</h3><p>Opens in a second. No install, no sign-up, no waiting for friends to download anything.</p></div>
+      <div class="feat rv" style="--d:.07s"><div class="ic"><svg viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg></div><h3>Chat &amp; GIFs</h3><p>Talk trash in real time. The same chat, with GIFs, lives in every game.</p></div>
+      <div class="feat rv" style="--d:.14s"><div class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div><h3>Turn timers</h3><p>Optional per-turn clocks keep games moving, and chess gets a proper clock with increments.</p></div>
+      <div class="feat rv" style="--d:.21s"><div class="ic"><svg viewBox="0 0 24 24"><rect x="7" y="2" width="10" height="20" rx="2.5"/><path d="M11 18h2"/></svg></div><h3>Any screen</h3><p>Phone, tablet or desktop. Drag to rotate the 3D boards and pinch to zoom.</p></div>
+    </div>
+  </section>
+
+  <section class="final rv" aria-label="Start playing">
+    <h2>Your table is <em style="font-style:normal;background:linear-gradient(100deg,#F5B342,#FF7A45);-webkit-background-clip:text;background-clip:text;color:transparent">waiting.</em></h2>
+    <p>Grab a friend, pick a game, and be playing before the kettle boils.</p>
+    <a class="btn primary" href="#games">Choose a game
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></a>
   </section>
 
   <footer>
-    <span>© Simple Games · Built with plain HTML, no tracking.</span>
+    <span>© Simple Games · Plain HTML, no tracking, no ads.</span>
     <span><a href="https://github.com/simple-games-dev" target="_blank" rel="noopener">github.com/simple-games-dev</a></span>
   </footer>
+  <p class="legal">Some of these games are inspired by well-known board games. They are fan-made, free, unofficial projects and are not affiliated with or endorsed by the original publishers.</p>
 </div>
 
 <script>
 (function(){
-  const chips = document.getElementById('chips'), cards = [...document.querySelectorAll('.game')], count = document.getElementById('count');
-  chips.addEventListener('click', e=>{
-    const b = e.target.closest('.chip'); if(!b) return;
-    chips.querySelectorAll('.chip').forEach(c=>c.classList.toggle('on', c===b));
-    const f = b.dataset.f; let n = 0;
-    cards.forEach(c=>{ const show = f==='all' || c.dataset.t.split(' ').includes(f); c.classList.toggle('hide', !show); if(show) n++; });
+  document.documentElement.classList.add('js');
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var fine = window.matchMedia('(pointer: fine)').matches;
+
+  /* filters */
+  var chips = document.getElementById('chips'), cards = [].slice.call(document.querySelectorAll('.game')), count = document.getElementById('count');
+  chips.addEventListener('click', function(e){
+    var b = e.target.closest('.chip'); if(!b) return;
+    [].forEach.call(chips.querySelectorAll('.chip'), function(c){ c.classList.toggle('on', c===b); });
+    var f = b.dataset.f, n = 0;
+    cards.forEach(function(c){ var show = f==='all' || c.dataset.t.split(' ').indexOf(f)!==-1; c.classList.toggle('hide', !show); if(show){ n++; c.classList.add('in'); } });
     count.textContent = n + (n===1 ? ' game' : ' games');
+  });
+
+  /* scroll reveal */
+  var rv = [].slice.call(document.querySelectorAll('.rv'));
+  if('IntersectionObserver' in window && !reduce){
+    var io = new IntersectionObserver(function(es){ es.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); } }); }, {threshold:.12, rootMargin:'0px 0px -6% 0px'});
+    rv.forEach(function(el){ io.observe(el); });
+  } else rv.forEach(function(el){ el.classList.add('in'); });
+
+  if(reduce || !fine) return;
+
+  /* cursor spotlight + hero parallax */
+  var root = document.documentElement, pcs = [].slice.call(document.querySelectorAll('.pc')), raf = 0, px = 0, py = 0;
+  window.addEventListener('pointermove', function(e){
+    root.style.setProperty('--mx', e.clientX+'px'); root.style.setProperty('--my', e.clientY+'px');
+    px = (e.clientX / window.innerWidth - .5); py = (e.clientY / window.innerHeight - .5);
+    if(!raf) raf = requestAnimationFrame(function(){ raf = 0;
+      pcs.forEach(function(p){ var d = parseFloat(p.dataset.d)||20; p.style.transform = 'translate3d('+(px*d*-1.6).toFixed(1)+'px,'+(py*d*-1.6).toFixed(1)+'px,0)'; });
+    });
+  }, {passive:true});
+
+  /* card glow + 3D tilt */
+  cards.forEach(function(c){
+    c.addEventListener('pointermove', function(e){
+      var r = c.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+      c.style.setProperty('--mx', x+'px'); c.style.setProperty('--my', y+'px');
+      var rx = ((y / r.height) - .5) * -7, ry = ((x / r.width) - .5) * 9;
+      c.style.transform = 'translateY(-6px) rotateX('+rx.toFixed(2)+'deg) rotateY('+ry.toFixed(2)+'deg)';
+    });
+    c.addEventListener('pointerleave', function(){ c.style.transform = ''; });
   });
 })();
 </script>
+<script>
+(function(){
+  var NAMES={merchants:'Gem Merchants',hedgerow:'Hedgerow',ghosts:'Ghosts',ascent:'Ascent',colonist:'Colonist',chess:'Chess'}, st={};
+  try{ st = JSON.parse(localStorage.getItem('sg_stats')||'{}')||{}; }catch(e){}
+  var keys = Object.keys(st).filter(function(k){ return st[k] && st[k].played; });
+  if(!keys.length) return;
+  var played=0, won=0, best=0; keys.forEach(function(k){ played+=st[k].played; won+=st[k].won; best=Math.max(best,st[k].best||0); });
+  var html = '<div class="rec"><b>'+played+'</b><span>Games played</span></div>'+
+             '<div class="rec"><b>'+Math.round(100*won/played)+'%</b><span>Win rate</span><small>'+won+' wins</small></div>'+
+             '<div class="rec"><b>'+best+'</b><span>Best win streak</span></div>';
+  keys.sort(function(a,b){ return st[b].played-st[a].played; }).slice(0,3).forEach(function(k){
+    var g=st[k]; html += '<div class="rec"><b>'+g.won+'/'+g.played+'</b><span>'+(NAMES[k]||k)+'</span><small>'+Math.round(100*g.won/g.played)+'% wins'+(g.streak>1?' · '+g.streak+' in a row':'')+'</small></div>';
+  });
+  document.getElementById('recGrid').innerHTML = html;
+  document.getElementById('record').hidden = false;
+})();
+</script>
+<script>if('serviceWorker' in navigator && /^https?:/.test(location.protocol)) window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));</script>
 </body>
 </html>

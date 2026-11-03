@@ -207,6 +207,10 @@
 
   const PLAYER_COLORS = ['#E1604A','#3FBF8F','#B98CE0'];
 
+  const colorizer = SG.colorizer(PLAYER_COLORS);
+  function colorOf(s,i){ return (s.seatColors && s.seatColors[i]) || colorizer.defaults[i]; }
+  function otherColors(i){ return ((state && state.seatColors) || []).filter((c,j)=> c && j!==i); }
+
   // Pawns sit visually on top of the tallest block on their tile — these are the
   // "top" CSS percentages (from the top of the tile) for ground / storey 1 / 2 / 3.
   const PAWN_TOP_BY_LEVEL = [70, 54, 38, 24];
@@ -246,6 +250,8 @@
       numPlayers: numPlayers||0,
       seats: [null,null,null],
       seatNames: ['','',''],
+      seatColors: [null,null,null],       // colour each seated player picked
+      gamesPlayed: 0,           // how many games this room has played (drives seat rotation)
       players: [],
       board: freshBoard(),
       placementSeq: [],
@@ -309,12 +315,16 @@
   // ---------- commit: write + render ----------
 // Everything except chat and seats is written; those two have their own safe writers
   // (chat = arrayUnion, seats = transactions), so a move can never wipe a message or a seat.
-  const NEVER_COMMIT = ['chat','seats','seatNames'];
+  const NEVER_COMMIT = ['chat','seats','seatNames','seatColors','gamesPlayed'];
   function commit(){
     if(mode==='online' && roomRef) SG.writeState(roomRef, state, NEVER_COMMIT);
     render();
   }
   // full overwrite of the room (new lobby: seats and chat are reset too)
+  function commitSeats(){
+    if(mode==='online' && roomRef) SG.writeState(roomRef, state, ['chat']);
+    render();
+  }
   function commitReset(){
     if(mode==='online' && roomRef) SG.writeState(roomRef, state, []);
     render();
@@ -329,8 +339,9 @@
     mode = 'local';
     state = freshState(numPlayers);
     state.turnTimerSeconds = timerSeconds || 0;
+    state.seatColors = SG.getLocalColors(colorizer.defaults, numPlayers);
     for(let i=0;i<numPlayers;i++){
-      state.players.push({color:PLAYER_COLORS[i], name:PLAYER_NAMES[i], alive:true, pawns:[null,null]});
+      state.players.push({color:colorOf(state,i), name:PLAYER_NAMES[i], alive:true, pawns:[null,null]});
     }
     const seq=[];
     for(let round=0; round<2; round++) for(let p=0;p<numPlayers;p++) seq.push(p);
@@ -399,11 +410,12 @@
 async function claimSeat(idx, name){
     if(!state) return;
     const cleanName = (name||'').trim().slice(0,20) || PLAYER_NAMES[idx];
-    const res = await mutateRoom(['seats','seatNames'], s=>{
+    const res = await mutateRoom(['seats','seatNames','seatColors'], s=>{
       if(s.seats[idx]) return 'That seat was just taken.';
       if(s.seats.indexOf(deviceId)!==-1) return "You're already seated in this room. Use another browser or device for the next player.";
       s.seats[idx] = deviceId;
       s.seatNames[idx] = cleanName;
+      SG.assignSeatColor(s, idx, colorizer.defaults);
     });
     if(res) alert(res);
   }
@@ -418,10 +430,11 @@ function renameSeat(idx){
 
   function startOnlineGame(){
     const n = state.numPlayers;
+    SG.assignSides(state, n);            // random sides the first game, then everyone moves up a seat
     state.players = [];
     for(let i=0;i<n;i++){
       state.players.push({
-        color:PLAYER_COLORS[i],
+        color:colorOf(state,i),
         name: state.seatNames[i] || PLAYER_NAMES[i],
         alive:true, pawns:[null,null]
       });
@@ -433,7 +446,7 @@ function renameSeat(idx){
     state.placementIndex = 0;
     state.phase = 'placement';
     addLog('New site opened. Placement begins.');
-    commit();
+    commitSeats();                       // seats moved, so write them too (chat stays untouched)
   }
 
   function mySeatIndex(){
@@ -966,7 +979,25 @@ function renameSeat(idx){
     try{ fn(); }catch(err){ console.error(`render step "${label}" failed:`, err); }
   }
 
+  // fireworks + confetti for the winner (and for everyone on a shared screen)
+  function rematchCtx(){
+    return {online: mode==='online' && !!roomRef, roomRef: roomRef, btn: document.getElementById('overlayBtn'),
+      ids: ((state && state.seats) || []).filter(Boolean), round: state ? (state.gamesPlayed||0) : 0, votes: state && state.rematchVotes};
+  }
+  function resultCtx(){
+    const me = mode==='online' ? mySeatIndex() : -1;
+    return {game:'ascent', over: me>=0 && !!state && state.phase==='gameover', won: (state && state.winner!==null && state.winner!==undefined) ? state.winner===me : null, key: roomCode+':'+(state ? (state.gamesPlayed||0) : 0)};
+  }
+  function celebrateCheck(){
+    SG.live({online: mode==='online' && !!roomRef, roomRef: roomRef, reaction: state && state.reaction, active: !!state, rematch: rematchCtx(), result: resultCtx(), spectator: mode==='online' && !!state && state.phase!=='lobby' && mySeatIndex()<0, myTurn: mode==='online' && !!state && state.phase!=='lobby' && state.phase!=='gameover' && isMyTurnToAct()});
+    const w = (state && state.phase==='gameover' && state.winner!==null && state.winner!==undefined) ? state.winner : null;
+    const me = (mode==='online') ? mySeatIndex() : -1;
+    const mine = mode!=='online' || me<0 || me===w;
+    SG.celebrateOnce(w!==null && mine, {colors: (w!==null && state.players && state.players[w]) ? [state.players[w].color] : []});
+  }
   function render(){
+    colorizer.apply(state ? state.seatColors : null);
+    celebrateCheck();
     if(!mode){
       hideAllCards();
       homeCard.classList.remove('hidden');
@@ -1058,7 +1089,8 @@ function renameSeat(idx){
       row.className='seat-row';
       const chip = document.createElement('div');
       chip.className='chip';
-      chip.style.background = PLAYER_COLORS[i];
+      SG.colorChip(chip, {mine: state.seats[i]===deviceId, current: PLAYER_COLORS[i], used: otherColors(i),
+        onPick: hex=>SG.setSeatColor(roomRef, i, hex, 3)});
       row.appendChild(chip);
 
       if(state.seats[i]){
@@ -1226,6 +1258,7 @@ function renameSeat(idx){
     homeCard.innerHTML = `
       <h2>Turn timer</h2>
       <div id="localTimerPick"></div>
+      <div id="localColors"></div>
       <div style="margin-top:14px; display:flex; gap:10px; justify-content:center;">
         <button class="secondary" id="backHomeBtn3">Back</button>
         <button id="localTimerStartBtn">Start game</button>
@@ -1238,6 +1271,7 @@ function renameSeat(idx){
       }, chosen);
     }
     refreshPicker();
+    SG.renderLocalColors(document.getElementById('localColors'), colorizer.defaults, numPlayers);
     document.getElementById('homeCard').addEventListener('click', (e)=>{
       if(e.target.id==='backHomeBtn3'){ showLocalCountPicker(); return; }
       if(e.target.id==='localTimerStartBtn'){ startLocalGame(numPlayers, chosen); return; }
@@ -1306,9 +1340,11 @@ function renameSeat(idx){
   });
 
   document.getElementById('overlayBtn').addEventListener('click', ()=>{
+    if(!SG.rematchGate(rematchCtx())) return;
     if(mode==='online' && roomRef){
-      const fresh = freshState(0);
+      const keep = state, fresh = freshState(keep.numPlayers);
       fresh.phase = 'lobby';
+      ['seats','seatNames','seatColors','gamesPlayed','turnTimerSeconds'].forEach(k=>{ fresh[k] = keep[k]; });
       state = fresh;
       commitReset();
     } else {

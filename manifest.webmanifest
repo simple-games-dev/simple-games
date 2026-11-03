@@ -1,0 +1,16 @@
+{
+  "name": "Simple Games",
+  "short_name": "Simple Games",
+  "description": "Board games to play with friends — no sign-up.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#06080F",
+  "theme_color": "#06080F",
+  "icons": [
+    {"src": "images/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+    {"src": "images/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+    {"src": "images/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+  ]
+}
