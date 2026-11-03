@@ -36,6 +36,13 @@ firestore.rules       security rules to publish in the Firebase console
 FIREBASE_SETUP.md     one-time Firebase checklist (rules, key restriction, App Check)
 ```
 
+```
+shared/sg-live.js     sound, vibration, "your turn" alerts, emoji reactions, rematch vote, stats, app install
+manifest.webmanifest  \ makes the site installable ("Add to home screen")
+sw.js                 /  and lets the last pages you saw open offline
+tools/bot-tune.py     self-play tuner for the Gem Merchants computer player
+```
+
 Everything is plain HTML/CSS/JS with no build step. Change `shared/sg.js` (chat, timer, rooms) or `shared/sg.css` once and every game gets it.
 
 ## What's shared, what's not
@@ -63,3 +70,30 @@ See [FIREBASE_SETUP.md](FIREBASE_SETUP.md). Short version: paste your config int
 ## A note on names
 
 Some of these games are inspired by well-known board games. They're fan-made, free, unofficial projects and aren't affiliated with or endorsed by the original publishers. If you're a rights holder and want something changed, please open an issue.
+
+
+## Playing against the computer (Gem Merchants)
+
+Pick **Easy / Normal / Hard** under "Opponents" for a same-device game, or under "Empty seats" in an online lobby (the computer fills any seat nobody joins). In an online room the first human's browser plays the computer's turns, so keep that tab open.
+
+It is a hand-written evaluation (no model, no server): every legal move gets a score from prestige, discount value, noble progress, gem efficiency and denial, and the best-scoring move is played. The weights were found by self-play hill-climbing (`tools/bot-tune.py`). Measured over 300 games, alternating who goes first:
+
+| Match-up | Win rate of the stronger level |
+|---|---|
+| Normal vs Easy | 83% |
+| Hard vs Normal | 75% |
+| Hard vs Easy | 95% |
+
+Easy ignores nobles and blocking and plays random moves now and then; Normal plays the same evaluation but takes the 2nd or 3rd best move 30% of the time; Hard never slips and also denies cards that opponents can afford.
+
+## Putting it on GitHub Pages
+
+1. Make sure `shared/firebase-config.js` has your own keys (it is not part of updates from this assistant).
+2. Upload everything in this folder to the repository root of `simple-games-dev/simple-games` (keep the folder structure), or from a terminal in this folder:
+   ```
+   git add -A
+   git commit -m "Midnight redesign, colours, bots, reactions"
+   git push
+   ```
+3. Repository **Settings → Pages → Build and deployment**: Source = *Deploy from a branch*, Branch = `main`, folder `/ (root)`.
+4. Open https://simple-games-dev.github.io/simple-games/ after about a minute. Hard-refresh once so the new service worker takes over.

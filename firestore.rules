@@ -1,0 +1,45 @@
+rules_version = '2';
+
+// Simple Games — Firestore rules
+// Rooms are short-lived game documents. Anyone with a room code can read/play, but:
+//  - only the known game collections are reachable (everything else is denied),
+//  - every room must carry an `expireAt` timestamp no more than 3 hours ahead,
+//  - rooms can only be deleted once they have expired (so the cleanup sweep works, but nobody can wipe live games),
+//  - collections can't be listed freely: only the small "expired rooms" sweep query is allowed.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function validExpiry() {
+      return request.resource.data.expireAt is timestamp
+          && request.resource.data.expireAt > request.time
+          && request.resource.data.expireAt < request.time + duration.value(3, 'h');
+    }
+    function sane() {
+      return request.resource.data.keys().size() < 60
+          && (!('chat' in request.resource.data) || request.resource.data.chat.size() <= 300)
+          && (!('log' in request.resource.data) || request.resource.data.log.size() <= 100);
+    }
+    function expired() {
+      return resource.data.expireAt < request.time;
+    }
+
+    // ---- game rooms ----
+    match /{col}/{room} {
+      allow get: if col in ['ascentRooms','tempoRooms','colonistRooms','ghostRooms','hedgeRooms','merchantRooms'];
+      // used by the opportunistic sweep: where('expireAt','<',now).limit(20)
+      allow list: if col in ['ascentRooms','tempoRooms','colonistRooms','ghostRooms','hedgeRooms','merchantRooms']
+                  && request.query.limit <= 20;
+      allow create, update: if col in ['ascentRooms','tempoRooms','colonistRooms','ghostRooms','hedgeRooms','merchantRooms']
+                            && validExpiry() && sane();
+      allow delete: if col in ['ascentRooms','tempoRooms','colonistRooms','ghostRooms','hedgeRooms','merchantRooms']
+                    && expired();
+    }
+
+    // ---- Ghosts: each seat's secret roles (document id is <room>_<seat>) ----
+    // Single-document reads only — never listable, so nobody can dump everyone's secrets in one query.
+    match /ghostPrivate/{docId} {
+      allow get, create, update, delete: if true;
+      allow list: if false;
+    }
+  }
+}
