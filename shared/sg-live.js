@@ -155,6 +155,42 @@
     b.title = mine ? 'Tap again after a few seconds to start anyway' : '';
   }
 
+
+  // ---------------- computer players (shared plumbing; each game brings its own brain) ----------------
+  // A bot owns a seat whose id starts with "bot". In an online room the first human's browser plays for it.
+  SG.bots = {
+    isBotId: function(id){ return typeof id==='string' && id.indexOf('bot')===0; },
+    names: ['Ada 🤖','Turing 🤖','Hopper 🤖','Nova 🤖'],
+    name: function(i){ return SG.bots.names[i % SG.bots.names.length]; },
+    levels: [[null,'Humans'],['easy','Easy'],['normal','Normal'],['hard','Hard']],
+    // Easy / Normal / Hard chooser. onPick(levelOrNull)
+    picker: function(el, level, onPick, label){
+      if(!el) return;
+      el.className = (el.className||'').replace(/\bsg-botpick\b/,'') + ' sg-botpick';
+      el.innerHTML = '<p class="sg-bp-label">'+label+': <b>'+(level?'computer':'people only')+'</b></p><div class="sg-bp-row">'+
+        SG.bots.levels.map(function(o){ return '<button type="button" class="'+((o[0]||null)===(level||null)?'':'secondary')+'" data-bot="'+(o[0]||'')+'">'+o[1]+'</button>'; }).join('')+'</div>';
+      el.querySelectorAll('button[data-bot]').forEach(function(b){ b.addEventListener('click', function(){ onPick(b.dataset.bot || null); }); });
+    },
+    // Schedules one computer move at a time, after a short "thinking" pause.
+    //   cfg = {active(): bool (it is a bot's turn and I'm the host), key(): string that changes every turn, play(): runs the move}
+    driver: function(cfg){
+      var timer = null, last = null;
+      return { tick: function(){
+        if(cfg.paused && cfg.paused()) return;
+        if(!cfg.active()){ return; }
+        var k = cfg.key();
+        if(timer && last===k) return;
+        if(timer) clearTimeout(timer);
+        last = k;
+        timer = setTimeout(function(){
+          timer = null;
+          if(!cfg.active() || cfg.key()!==k) return;
+          Promise.resolve().then(cfg.play).catch(function(e){ console.error('bot failed', e); });
+        }, (cfg.min||900) + Math.random()*(cfg.spread||700));
+      }};
+    }
+  };
+
   // ---------------- one call from each game's render() ----------------
   // SG.live({online, roomRef, reaction, active, myTurn})
   //   active = a game is in progress for this viewer; myTurn = it is this device's turn
@@ -182,6 +218,7 @@
 
   var css = document.createElement('style');
   css.textContent =
+   '.sg-botpick{margin-top:10px; text-align:center;} .sg-bp-label{font-size:13px; opacity:.75; margin:0 0 6px;} .sg-bp-row{display:flex; gap:6px;} .sg-bp-row button{flex:1 1 0; padding:9px 6px; font-size:13px;}'+
    '.sg-tools{position:fixed; top:10px; right:10px; z-index:70; display:flex; gap:6px;}'+
    '.sg-tool{width:34px; height:34px; border-radius:50%; padding:0; font-size:15px; line-height:1; cursor:pointer; color:#fff;'+
      'background:rgba(20,24,40,.7); border:1px solid rgba(255,255,255,.14); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);}'+

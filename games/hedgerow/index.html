@@ -92,6 +92,7 @@
           </div>
         </div>
         <div id="lobbyTimerPick" class="row-gap"></div>
+        <div id="lobbyBots" class="row-gap"></div>
         <div id="lobbySeats" class="row-gap"></div>
         <button id="startOnlineBtn" class="hidden" style="margin-top:6px;">Start game</button>
       </div>
@@ -219,6 +220,7 @@
   let overlayDismissed = false;
   let localCount = 2;
   let localTimerChoice = 0;
+  let localBotLevel = null;   // null = people only, else 'easy' | 'normal' | 'hard'
   let lastEventSeen = undefined;     // undefined = nothing seen yet (don't replay old events)
 
   // ---------- Firebase ----------
@@ -234,6 +236,7 @@
     return {
       phase: 'lobby',            // lobby, playing, gameover
       numPlayers: 0,
+      botLevel: null,            // null, or 'easy'|'normal'|'hard' when a computer fills empty seats
       seats: [null,null,null,null],
       seatNames: ['','','',''],
       seatColors: [null,null,null,null],       // colour each seated player picked
@@ -262,6 +265,7 @@
   function addLog(text, isWin){ addLogTo(state, text, isWin); }
 
   function commit(keys){
+    if(typeof simulating!=='undefined' && simulating) return;
     if(mode==='online' && roomRef) SG.writeKeys(roomRef, state, keys||ALL_GAME_KEYS);
     render();
   }
@@ -312,7 +316,14 @@
     state = freshState();
     state.turnTimerSeconds = timerSeconds || 0;
     state.seatColors = SG.getLocalColors(colorizer.defaults, n);
-    setupNewGame(state, n, []);
+    const names = [];
+    if(localBotLevel){
+      state.botLevel = localBotLevel;
+      state.seats = ['local0', null, null, null];
+      for(let i=1;i<n;i++){ state.seats[i] = 'bot'+i; names[i] = SG.bots.name(i); }
+      if(/[?&]botsonly/.test(location.search)){ state.seats[0] = 'bot0'; names[0] = SG.bots.name(0); }   // test aid
+    }
+    setupNewGame(state, n, names);
     commit();
   }
 
@@ -417,10 +428,15 @@
     mutateRoom(['seatNames'], s=>{ if(s.seats[idx]!==deviceId) return true; s.seatNames[idx] = clean; });
   }
   function startOnlineGame(){
-    mutateRoom(ALL_GAME_KEYS.concat(['numPlayers','seats','seatNames','seatColors','gamesPlayed']), s=>{
+    mutateRoom(ALL_GAME_KEYS.concat(['numPlayers','seats','seatNames','seatColors','gamesPlayed','botLevel']), s=>{
       const n = s.numPlayers;
       if(s.phase!=='lobby' || !n) return true;
-      for(let i=0;i<n;i++) if(!s.seats[i]) return true;
+      for(let i=0;i<n;i++){
+        if(s.seats[i]) continue;
+        if(!s.botLevel) return true;                       // someone is missing and no computer is filling in
+        s.seats[i] = 'bot'+i; s.seatNames[i] = SG.bots.name(i);
+        SG.assignSeatColor(s, i, colorizer.defaults);
+      }
       SG.assignSides(s, n);              // random sides the first game, then everyone moves up a seat
       setupNewGame(s, n, s.seatNames);
     });
@@ -440,8 +456,16 @@
   // GAME RULES
   // ======================================================================
   function currentSeat(){ return turnOrder(state.numPlayers)[state.turnIndex]; }
+  function isBotId(id){ return SG.bots.isBotId(id); }
+  function isBotSeat(i){ return !!state && !!state.seats && isBotId(state.seats[i]); }
+  function iAmBotHost(){
+    if(mode==='local') return true;
+    if(mode!=='online' || !state || !state.seats) return false;
+    return state.seats.find(id=> id && !isBotId(id)) === deviceId;
+  }
   function isMyTurnToAct(){
     if(!state || state.phase!=='playing') return false;
+    if(isBotSeat(currentSeat())) return false;   // nobody clicks for the computer
     if(mode==='local') return true;
     return state.seats[currentSeat()]===deviceId;
   }
@@ -575,6 +599,136 @@
     commit(MOVE_KEYS);
     return true;
   }
+
+
+  // ======================================================================
+  // COMPUTER PLAYER
+  // Hand-written search over pawn steps and hedges, scored by shortest-path distances (no model, no network).
+  //   easy   = walks its shortest path, drops a random hedge now and then
+  //   normal = 1-ply: best move by "their distance minus mine", hedges cost a little so it doesn't waste them
+  //   hard   = adds a 2-ply look (my move, then their best reply) in two-player games
+  // In an online room the first human's browser plays the computer's turns.
+  // ======================================================================
+  const BW = {wall:0.45, oppMin:0.5, me:1.1, noiseN:0.5, noiseH:0.05, slipN:0.25, slipH:0, lookK:10, wallEarly:0.0};
+  let simulating = false, simW = null;
+  const bw = seat=> (simW && simW[seat]) || BW;
+  function bwWallOk(w, S){
+    if(w.r<0 || w.r>N-2 || w.c<0 || w.c>N-2) return false;
+    const same = w.o==='h' ? S.h : S.v, cross = w.o==='h' ? S.v : S.h;
+    if(same.has(w.r+','+w.c) || cross.has(w.r+','+w.c)) return false;
+    if(w.o==='h' && (same.has(w.r+','+(w.c-1)) || same.has(w.r+','+(w.c+1)))) return false;
+    if(w.o==='v' && (same.has((w.r-1)+','+w.c) || same.has((w.r+1)+','+w.c))) return false;
+    return true;
+  }
+  function bwWith(S, w){ const h = new Set(S.h), v = new Set(S.v); (w.o==='h' ? h : v).add(w.r+','+w.c); return {h, v}; }
+  function bwDists(S, pawns, n){
+    const d = [];
+    for(let i=0;i<n;i++){ const x = shortestDistance(S, i, pawns[i].r, pawns[i].c); if(x<0) return null; d.push(x); }
+    return d;
+  }
+  function bwEval(d, me, w){
+    const opp = d.filter((x,i)=>i!==me);
+    const mn = Math.min.apply(null, opp), avg = opp.reduce((a,b)=>a+b,0)/opp.length;
+    return w.oppMin*mn + (1-w.oppMin)*avg - w.me*d[me];
+  }
+  // every legal move for `seat` in a position, each with the position it leads to
+  function bwMoves(seat, S, pawns, wallsLeft, n){
+    const out = [];
+    legalPawnMoves(seat, pawns, S, n).forEach(m=>{
+      const p2 = pawns.map(x=>({r:x.r,c:x.c})); p2[seat] = {r:m.r, c:m.c};
+      out.push({t:'move', r:m.r, c:m.c, S, pawns:p2, wallsLeft, win:goalReached(seat, m.r, m.c)});
+    });
+    if(wallsLeft[seat]>0){
+      for(let r=0;r<=N-2;r++) for(let c=0;c<=N-2;c++) for(const o of ['h','v']){
+        const w = {r,c,o};
+        if(!bwWallOk(w, S)) continue;
+        const S2 = bwWith(S, w);
+        const wl = wallsLeft.slice(); wl[seat]--;
+        out.push({t:'wall', w, S:S2, pawns, wallsLeft:wl});
+      }
+    }
+    return out;
+  }
+  function bwScore(mv, seat, n, w){
+    if(mv.win) return 1000;
+    const d = bwDists(mv.S, mv.pawns, n);
+    if(!d) return -Infinity;                                     // would trap somebody
+    mv.d = d;
+    return bwEval(d, seat, w) - (mv.t==='wall' ? w.wall : 0);
+  }
+  function botChoose(seat, level){
+    const n = state.numPlayers, w = bw(seat);
+    const S = wallSets(state.walls), pawns = state.pawns, wl = state.wallsLeft;
+    if(level==='easy'){
+      const moves = legalPawnMoves(seat, pawns, S, n);
+      if(Math.random()<0.12 && wl[seat]>0){
+        const ws = bwMoves(seat, S, pawns, wl, n).filter(m=>m.t==='wall' && bwDists(m.S, pawns, n));
+        if(ws.length) return ws[Math.floor(Math.random()*ws.length)];
+      }
+      let best = [], bd = Infinity;
+      moves.forEach(m=>{ const d = shortestDistance(S, seat, m.r, m.c); const dd = d<0?999:d; if(Math.random()<0.1) return; if(dd<bd){ bd=dd; best=[m]; } else if(dd===bd) best.push(m); });
+      const pick = (best.length?best:moves)[Math.floor(Math.random()*(best.length?best.length:moves.length))];
+      return {t:'move', r:pick.r, c:pick.c};
+    }
+    const hard = level==='hard';
+    const cands = bwMoves(seat, S, pawns, wl, n);
+    cands.forEach(mv=>{ mv.sc = bwScore(mv, seat, n, w); });
+    let list = cands.filter(m=>m.sc>-Infinity).sort((a,b)=>b.sc-a.sc);
+    if(hard && n===2 && list.length){
+      const opp = 1-seat;
+      list.slice(0, w.lookK).forEach(mv=>{
+        if(mv.win) return;
+        const replies = bwMoves(opp, mv.S, mv.pawns, mv.wallsLeft, n);
+        let bestR = -Infinity, bestD = null;
+        replies.forEach(r=>{
+          if(r.win){ bestR = Infinity; bestD = null; return; }
+          const d = bwDists(r.S, r.pawns, n); if(!d) return;
+          const v = bwEval(d, opp, w) - (r.t==='wall' ? w.wall : 0);
+          if(v>bestR){ bestR = v; bestD = d; }
+        });
+        mv.sc2 = bestR===Infinity ? -1000 : (bestD ? bwEval(bestD, seat, w) - (mv.t==='wall' ? w.wall : 0) : mv.sc);
+      });
+      list.slice(0, w.lookK).forEach(mv=>{ if(mv.sc2!==undefined) mv.sc = mv.sc2; });
+      list = list.slice(0, w.lookK).sort((a,b)=>b.sc-a.sc);
+    }
+    const noise = hard ? w.noiseH : w.noiseN;
+    list.forEach(mv=>{ mv.sc += Math.random()*noise; });
+    list.sort((a,b)=>b.sc-a.sc);
+    const slip = hard ? w.slipH : w.slipN;
+    if(slip>0 && list.length>1 && Math.random()<slip) return list[1 + Math.floor(Math.random()*Math.min(2, list.length-1))];
+    return list[0] || {t:'pass'};
+  }
+  function botPlay(){
+    const seat = currentSeat(), level = (state.botLevels && state.botLevels[seat]) || state.botLevel || 'normal';
+    const mv = botChoose(seat, level);
+    let res = true;
+    if(mv.t==='move') res = doMovePawn(mv.r, mv.c);
+    else if(mv.t==='wall'){ res = doPlaceWall(mv.w); if(typeof res==='string') res = false; }
+    if(res===false || mv.t==='pass'){      // never stall: fall back to a plain step along the shortest path
+      const S = wallSets(state.walls); let best=null, bd=Infinity;
+      legalPawnMoves(seat).forEach(m=>{ const d=shortestDistance(S,seat,m.r,m.c); if(d>=0 && d<bd){ bd=d; best=m; } });
+      if(best) doMovePawn(best.r, best.c); else { advanceTurn(); commit(MOVE_KEYS); }
+    }
+  }
+  const botDrive = SG.bots.driver({
+    active: ()=> !simulating && !!state && state.phase==='playing' && isBotSeat(currentSeat()) && iAmBotHost(),
+    key: ()=> state.gameId+'|'+state.turnIndex+'|'+(state.log||[]).length,
+    play: botPlay
+  });
+  if(/[?&]botsonly/.test(location.search)) window.__sim = {
+    setSeatW: arr=>{ simW = arr; }, getW: ()=> Object.assign({}, BW),
+    game: (levels, n)=>{
+      simulating = true; mode = 'local';
+      state = freshState(); state.seatColors = SG.getLocalColors(colorizer.defaults, n);
+      state.seats = []; for(let i=0;i<n;i++) state.seats[i] = 'bot'+i;
+      state.botLevels = levels;
+      setupNewGame(state, n, []);
+      let guardN = 600, plies = 0;
+      const _c = commit, _r = render;
+      try{ while(state.phase==='playing' && guardN-- > 0){ botPlay(); plies++; } } finally { simulating = false; }
+      return {winner: state.winner, plies, over: state.phase==='gameover'};
+    }
+  };
 
   // ---------- TURN TIMER ----------
   // On timeout the active player's pawn automatically takes a step along their shortest path.
@@ -1123,7 +1277,7 @@
   // fireworks + confetti for the winner (and for everyone on a shared screen)
   function rematchCtx(){
     return {online: mode==='online' && !!roomRef, roomRef: roomRef, btn: document.getElementById('overlayBtn'),
-      ids: ((state && state.seats) || []).filter(Boolean), round: state ? (state.gamesPlayed||0) : 0, votes: state && state.rematchVotes};
+      ids: ((state && state.seats) || []).filter(id=>id && !isBotId(id)), round: state ? (state.gamesPlayed||0) : 0, votes: state && state.rematchVotes};
   }
   function resultCtx(){
     const me = mode==='online' ? mySeatIndex() : -1;
@@ -1137,6 +1291,7 @@
     SG.celebrateOnce(w!==null && mine, {colors: (w!==null && state.players && state.players[w]) ? [state.players[w].color] : []});
   }
   function render(){
+    if(typeof simulating!=='undefined' && simulating) return;
     colorizer.apply(state ? state.seatColors : null);
     celebrateCheck();
     if(!mode){
@@ -1186,6 +1341,7 @@
     safeRun(renderLog, 'log');
     safeRun(renderChatWidget, 'chatWidget');
     if(state.turnPhaseDeadline && state.phase==='playing') startTurnTicking(); else stopTurnTicking();
+    if(botDrive) botDrive.tick();
 
     if(state.phase==='gameover'){
       if(!overlayDismissed){
@@ -1234,6 +1390,9 @@
     renderTimerPicker(document.getElementById('lobbyTimerPick'), (secs)=>{
       mutateRoom(['turnTimerSeconds'], s=>{ s.turnTimerSeconds = secs; });
     });
+    SG.bots.picker(document.getElementById('lobbyBots'), state.botLevel || null, lvl=>{
+      mutateRoom(['botLevel'], s=>{ s.botLevel = lvl; });
+    }, 'Empty seats');
 
     for(let i=0;i<state.numPlayers;i++){
       const row = document.createElement('div');
@@ -1248,6 +1407,7 @@
         const nm = document.createElement('div');
         nm.textContent = state.seatNames[i];
         row.appendChild(nm);
+        if(isBotId(state.seats[i])){ const bt = document.createElement('div'); bt.className='you'; bt.textContent='computer'; row.appendChild(bt); }
         if(state.seats[i]===deviceId){
           const rename = document.createElement('button');
           rename.className='secondary'; rename.textContent='✎'; rename.title='Change your name';
@@ -1260,7 +1420,7 @@
         }
       } else {
         const label = document.createElement('div');
-        label.textContent = `Seat ${i+1} (${SIDE_NAME[i]}) — open`;
+        label.textContent = `Seat ${i+1} (${SIDE_NAME[i]}) — open` + (state.botLevel ? ' (computer plays it if nobody joins)' : '');
         row.appendChild(label);
         const claimBtn = document.createElement('button');
         claimBtn.className='secondary';
@@ -1273,8 +1433,9 @@
     }
 
     const allClaimed = state.seats.slice(0,state.numPlayers).every(s=>s!==null);
-    startBtn.classList.toggle('hidden', !allClaimed);
-    startBtn.disabled = !(allClaimed && state.seats.indexOf(deviceId)!==-1);
+    const canStart = allClaimed || (!!state.botLevel && state.seats.slice(0,state.numPlayers).some(s=>s && !isBotId(s)));
+    startBtn.classList.toggle('hidden', !canStart);
+    startBtn.disabled = !(canStart && state.seats.indexOf(deviceId)!==-1);
   }
 
   function onTileClick(r,c){
@@ -1486,6 +1647,7 @@
     homeCard.innerHTML = `
       <h2>Turn timer</h2>
       <div id="localTimerPick"></div>
+      <div id="localBots"></div>
       <div id="localColors"></div>
       <div style="margin-top:14px; display:flex; gap:10px; justify-content:center;">
         <button class="secondary" data-act="local">Back</button>
@@ -1493,6 +1655,8 @@
       </div>`;
     const refresh = ()=> renderTimerPicker(document.getElementById('localTimerPick'), secs=>{ localTimerChoice = secs; refresh(); }, localTimerChoice);
     refresh();
+    const paintBots = ()=> SG.bots.picker(document.getElementById('localBots'), localBotLevel, lvl=>{ localBotLevel = lvl; paintBots(); }, 'Opponents');
+    paintBots();
     SG.renderLocalColors(document.getElementById('localColors'), colorizer.defaults, localCount);
   }
   function goOnlineSetup(){

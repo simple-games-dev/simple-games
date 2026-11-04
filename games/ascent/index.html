@@ -133,6 +133,7 @@
           </div>
         </div>
         <div id="lobbyTimerPick" class="row-gap"></div>
+        <div id="lobbyBots" class="row-gap"></div>
         <div id="lobbySeats" class="row-gap"></div>
         <button id="startOnlineBtn" class="hidden" style="margin-top:6px;">Start game</button>
       </div>
@@ -231,6 +232,7 @@
   let roomCode = null;
   let roomRef = null;
   let deviceId = null;
+  let localBotLevel = null;   // null = people only, else 'easy' | 'normal' | 'hard'
 
   // ---------- Firebase (only touched in online mode) ----------
   const fbDb = SG.initFirestore();
@@ -248,6 +250,7 @@
     return {
       phase: 'menu', // menu, placement, selectPawn, selectMove, selectBuild, gameover, lobby
       numPlayers: numPlayers||0,
+      botLevel: null,            // null, or 'easy'|'normal'|'hard' when a computer fills empty seats
       seats: [null,null,null],
       seatNames: ['','',''],
       seatColors: [null,null,null],       // colour each seated player picked
@@ -317,6 +320,7 @@
   // (chat = arrayUnion, seats = transactions), so a move can never wipe a message or a seat.
   const NEVER_COMMIT = ['chat','seats','seatNames','seatColors','gamesPlayed'];
   function commit(){
+    if(typeof simulating!=='undefined' && simulating) return;
     if(mode==='online' && roomRef) SG.writeState(roomRef, state, NEVER_COMMIT);
     render();
   }
@@ -342,6 +346,12 @@
     state.seatColors = SG.getLocalColors(colorizer.defaults, numPlayers);
     for(let i=0;i<numPlayers;i++){
       state.players.push({color:colorOf(state,i), name:PLAYER_NAMES[i], alive:true, pawns:[null,null]});
+    }
+    if(localBotLevel){
+      state.botLevel = localBotLevel;
+      state.seats = ['local0', null, null];
+      for(let i=1;i<numPlayers;i++){ state.seats[i] = 'bot'+i; state.players[i].name = SG.bots.name(i); }
+      if(/[?&]botsonly/.test(location.search)){ state.seats[0] = 'bot0'; state.players[0].name = SG.bots.name(0); }   // test aid
     }
     const seq=[];
     for(let round=0; round<2; round++) for(let p=0;p<numPlayers;p++) seq.push(p);
@@ -430,6 +440,12 @@ function renameSeat(idx){
 
   function startOnlineGame(){
     const n = state.numPlayers;
+    for(let i=0;i<n;i++){
+      if(state.seats[i]) continue;
+      if(!state.botLevel) return;                          // someone is missing and no computer is filling in
+      state.seats[i] = 'bot'+i; state.seatNames[i] = SG.bots.name(i);
+      SG.assignSeatColor(state, i, colorizer.defaults);
+    }
     SG.assignSides(state, n);            // random sides the first game, then everyone moves up a seat
     state.players = [];
     for(let i=0;i<n;i++){
@@ -455,7 +471,22 @@ function renameSeat(idx){
   }
 
 
+  function isBotId(id){ return SG.bots.isBotId(id); }
+  function isBotSeat(i){ return !!state && !!state.seats && isBotId(state.seats[i]); }
+  function hasBots(){ return !!state && !!state.seats && state.seats.some(isBotId); }
+  function iAmBotHost(){
+    if(mode==='local') return true;
+    if(mode!=='online' || !state || !state.seats) return false;
+    return state.seats.find(id=> id && !isBotId(id)) === deviceId;
+  }
+  function actorSeat(){
+    if(!state) return -1;
+    if(state.phase==='placement') return currentPlacementPlayer();
+    if(state.phase==='selectPawn'||state.phase==='selectMove'||state.phase==='selectBuild') return state.currentPlayer;
+    return -1;
+  }
   function isMyTurnToAct(){
+    if(actorSeat()>=0 && isBotSeat(actorSeat())) return false;   // nobody clicks for the computer
     if(mode!=='online') return true;
     if(state.phase==='placement') return state.seats[currentPlacementPlayer()]===deviceId;
     if(state.phase==='selectPawn'||state.phase==='selectMove'||state.phase==='selectBuild'){
@@ -577,6 +608,161 @@ function renameSeat(idx){
     commit();
   }
 
+
+  // ======================================================================
+  // COMPUTER PLAYER
+  // Searches whole turns (move + build) on a small copy of the board and scores positions by height, mobility,
+  // centre control and climbing chances; it always takes a win and never leaves the opponent one.
+  //   easy = random-ish   normal = one-turn lookahead with slips   hard = looks at your best reply too (2 players)
+  // In an online room the first human's browser plays the computer's turns.
+  // ======================================================================
+  const AW = {h1:3, h2:10, h3:60, center:1.2, mob:0.6, climb:2.2, oppW:1.0, noiseN:0.6, noiseH:0.05, slipN:0.25, slipH:0, place:1.0, lookK:14};
+  let simulating = false, simW = null;
+  const aw = seat=> (simW && simW[seat]) || AW;
+  const NB = []; for(let i=0;i<25;i++){ const r=(i/5)|0, c=i%5, l=[]; for(let dr=-1;dr<=1;dr++) for(let dc=-1;dc<=1;dc++){ if(!dr&&!dc) continue; const a=r+dr,b=c+dc; if(a>=0&&a<5&&b>=0&&b<5) l.push(a*5+b); } NB.push(l); }
+  function snap(){
+    const lv = new Int8Array(25), occ = new Int8Array(25).fill(-1), pos = state.players.map(()=>[-1,-1]);
+    for(let r=0;r<5;r++) for(let c=0;c<5;c++){ const t = state.board[key(r,c)]; lv[r*5+c] = t.level; if(t.pawn){ occ[r*5+c] = t.pawn.p; pos[t.pawn.p][t.pawn.idx] = r*5+c; } }
+    return {lv, occ, pos, alive: state.players.map(p=>p.alive)};
+  }
+  function turnsOf(S, p){
+    const out = [];
+    S.pos[p].forEach((from, idx)=>{
+      if(from<0) return;
+      NB[from].forEach(m=>{
+        if(S.occ[m]>=0 || S.lv[m]>=4 || S.lv[m]>S.lv[from]+1) return;
+        if(S.lv[m]===3){ out.push({idx, m, b:-1, win:true}); return; }
+        NB[m].forEach(b=>{
+          if(b===m) return;
+          if((S.occ[b]>=0 && b!==from) || S.lv[b]>=4) return;
+          out.push({idx, m, b, win:false});
+        });
+      });
+    });
+    return out;
+  }
+  function apply(S, p, t){
+    const lv = S.lv.slice(), occ = S.occ.slice(), pos = S.pos.map(x=>x.slice());
+    const from = pos[p][t.idx];
+    occ[from] = -1; occ[t.m] = p; pos[p][t.idx] = t.m;
+    if(t.b>=0) lv[t.b]++;
+    return {lv, occ, pos, alive:S.alive};
+  }
+  function canWinNext(S, p){      // can player p step onto a storey-3 tile next turn?
+    for(const from of S.pos[p]){
+      if(from<0 || S.lv[from]<2) continue;
+      for(const m of NB[from]) if(S.occ[m]<0 && S.lv[m]===3) return true;
+    }
+    return false;
+  }
+  function pawnValue(S, p, w){
+    let v = 0;
+    S.pos[p].forEach(from=>{
+      if(from<0) return;
+      const h = S.lv[from], r=(from/5)|0, c=from%5;
+      v += h===0 ? 0 : h===1 ? w.h1 : h===2 ? w.h2 : w.h3;
+      v += (4 - (Math.abs(r-2)+Math.abs(c-2)))*w.center*0.5;
+      let mob = 0, climb = 0;
+      NB[from].forEach(m=>{ if(S.occ[m]<0 && S.lv[m]<4 && S.lv[m]<=h+1){ mob++; if(S.lv[m]>h) climb += S.lv[m]-h; } });
+      v += mob*w.mob + (h>=1 ? climb*w.climb : climb*w.climb*0.4);
+    });
+    return v;
+  }
+  function evalFor(S, me, w){
+    const n = S.pos.length; let opp = 0, cnt = 0;
+    for(let p=0;p<n;p++){ if(p===me || !S.alive[p]) continue; opp += pawnValue(S, p, w); cnt++; }
+    return pawnValue(S, me, w) - w.oppW*(cnt ? opp/cnt : 0);
+  }
+  function botTurn(p, level){
+    const w = aw(p), S = snap(), n = S.pos.length;
+    const turns = turnsOf(S, p);
+    if(!turns.length) return null;
+    const win = turns.find(t=>t.win); if(win) return win;
+    if(level==='easy'){
+      const up = turns.filter(t=>S.lv[t.m]>S.lv[S.pos[p][t.idx]]);
+      const pool = (up.length && Math.random()<0.5) ? up : turns;
+      return pool[Math.floor(Math.random()*pool.length)];
+    }
+    const hard = level==='hard';
+    const foes = []; for(let q=0;q<n;q++) if(q!==p && S.alive[q]) foes.push(q);
+    turns.forEach(t=>{
+      const S2 = apply(S, p, t);
+      if(foes.some(q=>canWinNext(S2, q))){ t.sc = -9000; return; }   // never hand over a win
+      t.sc = evalFor(S2, p, w); t.S2 = S2;
+    });
+    let list = turns.slice().sort((a,b)=>b.sc-a.sc);
+    if(hard && foes.length===1){
+      const q = foes[0];
+      list.slice(0, w.lookK).forEach(t=>{
+        if(t.sc<=-9000) return;
+        const replies = turnsOf(t.S2, q);
+        if(!replies.length){ t.sc = 9000; return; }                     // they'd be stuck
+        let worst = Infinity;
+        for(const r of replies){
+          if(r.win){ worst = -9000; break; }
+          const S3 = apply(t.S2, q, r);
+          const v = evalFor(S3, p, w);
+          if(v<worst) worst = v;
+        }
+        t.sc = worst;
+      });
+      list = list.slice(0, w.lookK).sort((a,b)=>b.sc-a.sc);
+    }
+    const noise = hard ? w.noiseH : w.noiseN;
+    list.forEach(t=>{ if(t.sc>-9000) t.sc += Math.random()*noise; });
+    list.sort((a,b)=>b.sc-a.sc);
+    const slip = hard ? w.slipH : w.slipN;
+    if(slip>0 && list.length>1 && Math.random()<slip && list[0].sc<5000){
+      const ok = list.filter(t=>t.sc>-9000).slice(1,4); if(ok.length) return ok[Math.floor(Math.random()*ok.length)];
+    }
+    return list[0];
+  }
+  function botPlace(p, level){
+    const w = aw(p), free = [];
+    for(let r=0;r<5;r++) for(let c=0;c<5;c++) if(!pawnAt(r,c)) free.push({r,c});
+    const mine = state.players[p].pawns.filter(Boolean);
+    free.forEach(t=>{
+      const d = Math.abs(t.r-2)+Math.abs(t.c-2);
+      let sc = (4-d)*w.place + Math.random()*(level==='easy' ? 6 : 0.8);
+      state.players.forEach((pl,q)=>{ if(q!==p) pl.pawns.forEach(o=>{ if(o && Math.max(Math.abs(o.r-t.r),Math.abs(o.c-t.c))===1) sc += 0.3; }); });  // stay near the action
+      mine.forEach(m=>{ const dd = Math.max(Math.abs(m.r-t.r),Math.abs(m.c-t.c)); if(dd<=1) sc -= 1.5; });                                               // but not on top of my own pawn
+      t.sc = sc;
+    });
+    free.sort((a,b)=>b.sc-a.sc);
+    return free[0];
+  }
+  function botPlay(){
+    const level = (state.botLevels && state.botLevels[actorSeat()]) || state.botLevel || 'normal';
+    if(state.phase==='placement'){ const t = botPlace(currentPlacementPlayer(), level); placePawn(t.r, t.c); return; }
+    if(state.phase!=='selectPawn') return;
+    const p = state.currentPlayer, t = botTurn(p, level);
+    if(!t){ return; }
+    selectPawn(t.idx);
+    moveTo((t.m/5)|0, t.m%5);
+    if(state.phase==='selectBuild' && t.b>=0) buildAt((t.b/5)|0, t.b%5);
+    else if(state.phase==='selectBuild'){ const b = state.validBuildTiles[0]; if(b) buildAt(b.r, b.c); }
+  }
+  const botDrive = SG.bots.driver({
+    active: ()=> !simulating && !!state && actorSeat()>=0 && isBotSeat(actorSeat()) && iAmBotHost(),
+    key: ()=> state.phase+'|'+state.placementIndex+'|'+state.currentPlayer+'|'+(state.log||[]).length,
+    play: botPlay
+  });
+  if(/[?&]botsonly/.test(location.search)) window.__sim = {
+    setSeatW: arr=>{ simW = arr; }, getW: ()=> Object.assign({}, AW),
+    game: (levels, n)=>{
+      simulating = true; mode = 'local';
+      state = freshState(n); state.seatColors = SG.getLocalColors(colorizer.defaults, n);
+      for(let i=0;i<n;i++) state.players.push({color:colorOf(state,i), name:PLAYER_NAMES[i], alive:true, pawns:[null,null]});
+      state.seats = []; for(let i=0;i<n;i++) state.seats[i] = 'bot'+i;
+      state.botLevels = levels;
+      const seq=[]; for(let round=0; round<2; round++) for(let p=0;p<n;p++) seq.push(p);
+      state.placementSeq = seq; state.placementIndex = 0; state.phase = 'placement';
+      let plies = 0;
+      try{ while(state.phase!=='gameover' && plies<400){ botPlay(); plies++; } } finally { simulating = false; }
+      return {winner: state.winner, plies, over: state.phase==='gameover', reason: state.winReason};
+    }
+  };
+
   // ---------- TURN TIMER ----------
   // Each phase (move, then build) gets its own fresh countdown — time never carries
   // over between them. If a player runs out of time, a random valid action is taken
@@ -609,6 +795,7 @@ function renameSeat(idx){
     if(!state || !state.turnPhaseDeadline) return;
     if(state.phase!=='selectPawn' && state.phase!=='selectMove' && state.phase!=='selectBuild') return;
     if(mode==='online' && !isMyTurnToAct()) return; // only the active player's own client acts
+    if(isBotSeat(actorSeat())) return;               // the computer never times out
     if(Date.now() < state.turnPhaseDeadline) return;
     if(state.phase==='selectBuild') handleBuildTimeout();
     else handleMoveTimeout();
@@ -982,7 +1169,7 @@ function renameSeat(idx){
   // fireworks + confetti for the winner (and for everyone on a shared screen)
   function rematchCtx(){
     return {online: mode==='online' && !!roomRef, roomRef: roomRef, btn: document.getElementById('overlayBtn'),
-      ids: ((state && state.seats) || []).filter(Boolean), round: state ? (state.gamesPlayed||0) : 0, votes: state && state.rematchVotes};
+      ids: ((state && state.seats) || []).filter(id=>id && !isBotId(id)), round: state ? (state.gamesPlayed||0) : 0, votes: state && state.rematchVotes};
   }
   function resultCtx(){
     const me = mode==='online' ? mySeatIndex() : -1;
@@ -996,6 +1183,7 @@ function renameSeat(idx){
     SG.celebrateOnce(w!==null && mine, {colors: (w!==null && state.players && state.players[w]) ? [state.players[w].color] : []});
   }
   function render(){
+    if(typeof simulating!=='undefined' && simulating) return;
     colorizer.apply(state ? state.seatColors : null);
     celebrateCheck();
     if(!mode){
@@ -1041,6 +1229,7 @@ function renameSeat(idx){
     safeRun(renderChatWidget, 'chatWidget');
     if(state.turnPhaseDeadline && state.phase!=='gameover') startTurnTicking();
     else stopTurnTicking();
+    if(botDrive) botDrive.tick();
 
     if(state.phase==='gameover'){
       overlay.classList.remove('hidden');
@@ -1083,6 +1272,7 @@ function renameSeat(idx){
     }
     countPick.classList.add('hidden');
     renderTimerPicker(document.getElementById('lobbyTimerPick'), (secs)=>{ state.turnTimerSeconds = secs; commit(); });
+    SG.bots.picker(document.getElementById('lobbyBots'), state.botLevel || null, lvl=>{ state.botLevel = lvl; commit(); }, 'Empty seats');
 
     for(let i=0;i<state.numPlayers;i++){
       const row = document.createElement('div');
@@ -1097,6 +1287,7 @@ function renameSeat(idx){
         const nm = document.createElement('div');
         nm.textContent = state.seatNames[i];
         row.appendChild(nm);
+        if(isBotId(state.seats[i])){ const bt = document.createElement('div'); bt.className='you'; bt.textContent='computer'; row.appendChild(bt); }
         if(state.seats[i]===deviceId){
           const rename = document.createElement('button');
           rename.className='secondary'; rename.textContent='✎'; rename.title='Change your name';
@@ -1109,7 +1300,7 @@ function renameSeat(idx){
         }
       } else {
         const label = document.createElement('div');
-        label.textContent = `Seat ${i+1} — open`;
+        label.textContent = state.botLevel ? `Seat ${i+1} — open (computer plays it if nobody joins)` : `Seat ${i+1} — open`;
         row.appendChild(label);
         const claimBtn = document.createElement('button');
         claimBtn.className='secondary';
@@ -1121,7 +1312,8 @@ function renameSeat(idx){
       seatsEl.appendChild(row);
     }
 
-    const allClaimed = state.seats.slice(0,state.numPlayers).every(s=>s!==null);
+    const allClaimed = state.seats.slice(0,state.numPlayers).every(s=>s!==null) ||
+      (!!state.botLevel && state.seats.slice(0,state.numPlayers).some(x=>x && !isBotId(x)));
     if(allClaimed){
       startBtn.classList.remove('hidden');
       startBtn.disabled = false;
@@ -1258,6 +1450,7 @@ function renameSeat(idx){
     homeCard.innerHTML = `
       <h2>Turn timer</h2>
       <div id="localTimerPick"></div>
+      <div id="localBots"></div>
       <div id="localColors"></div>
       <div style="margin-top:14px; display:flex; gap:10px; justify-content:center;">
         <button class="secondary" id="backHomeBtn3">Back</button>
@@ -1271,6 +1464,8 @@ function renameSeat(idx){
       }, chosen);
     }
     refreshPicker();
+    const paintBots = ()=> SG.bots.picker(document.getElementById('localBots'), localBotLevel, lvl=>{ localBotLevel = lvl; paintBots(); }, 'Opponents');
+    paintBots();
     SG.renderLocalColors(document.getElementById('localColors'), colorizer.defaults, numPlayers);
     document.getElementById('homeCard').addEventListener('click', (e)=>{
       if(e.target.id==='backHomeBtn3'){ showLocalCountPicker(); return; }
@@ -1344,7 +1539,7 @@ function renameSeat(idx){
     if(mode==='online' && roomRef){
       const keep = state, fresh = freshState(keep.numPlayers);
       fresh.phase = 'lobby';
-      ['seats','seatNames','seatColors','gamesPlayed','turnTimerSeconds'].forEach(k=>{ fresh[k] = keep[k]; });
+      ['seats','seatNames','seatColors','gamesPlayed','turnTimerSeconds','botLevel'].forEach(k=>{ fresh[k] = keep[k]; });
       state = fresh;
       commitReset();
     } else {

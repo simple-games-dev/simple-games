@@ -72,7 +72,7 @@ See [FIREBASE_SETUP.md](FIREBASE_SETUP.md). Short version: paste your config int
 Some of these games are inspired by well-known board games. They're fan-made, free, unofficial projects and aren't affiliated with or endorsed by the original publishers. If you're a rights holder and want something changed, please open an issue.
 
 
-## Playing against the computer (Gem Merchants)
+## Playing against the computer (Gem Merchants, Hedgerow, Ghosts, Ascent)
 
 Pick **Easy / Normal / Hard** under "Opponents" for a same-device game, or under "Empty seats" in an online lobby (the computer fills any seat nobody joins). In an online room the first human's browser plays the computer's turns, so keep that tab open.
 
@@ -85,6 +85,16 @@ It is a hand-written evaluation (no model, no server): every legal move gets a s
 | Hard vs Easy | 95% |
 
 Easy ignores nobles and blocking and plays random moves now and then; Normal plays the same evaluation but takes the 2nd or 3rd best move 30% of the time; Hard never slips and also denies cards that opponents can afford.
+
+The same Easy / Normal / Hard picker exists in **Hedgerow**, **Ghosts** and **Ascent**. They use the same approach (hand-written evaluation, weights tuned by self-play in a headless page, Easy = random-ish, Normal = full evaluation with occasional slips, Hard = no slips plus a short look-ahead). Measured self-play win rates of the stronger level:
+
+| Game | Normal vs Easy | Hard vs Normal |
+|---|---|---|
+| Hedgerow | 100% | 80% |
+| Ghosts | 75% | 68% (Hard vs Easy 94%) |
+| Ascent | 100% | 85% |
+
+In Ghosts the computer arranges and plays its own ghosts, but it never reads yours; it only sees what a human opponent would see.
 
 ## Putting it on GitHub Pages
 
