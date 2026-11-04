@@ -171,6 +171,11 @@
     const gifOn = typeof GIPHY_API_KEY!=='undefined' && GIPHY_API_KEY && GIPHY_API_KEY!=='YOUR_GIPHY_KEY';
     if(!gifOn) $('gifBtn').classList.add('hidden');
     let open = false, lastSeen = 0, toastTimer = null;
+    const isMuted = ()=> !!(SG.mute && SG.mute.chat);
+    // every message pops up at most once, ever (remembered on this device)
+    function seenSet(){ try{ return JSON.parse(localStorage.getItem('sg_toast_seen')||'[]'); }catch(e){ return []; } }
+    function markSeen(k){ const a = seenSet(); if(a.indexOf(k)===-1){ a.push(k); try{ localStorage.setItem('sg_toast_seen', JSON.stringify(a.slice(-300))); }catch(e){} } }
+    function keyOf(list, i){ const ref = o.getRoomRef(); const m = list[i]; return (ref&&ref.id||'')+'#'+i+'#'+(m.ts||'')+'#'+(m.from||''); }
 
     function msgs(){ if(o.getMessages) return o.getMessages() || []; const s = o.getState(); return (s && s.chat) ? s.chat : []; }
     function defaultHtml(m){
@@ -187,7 +192,7 @@
     }
     function renderLog(){
       const el = $('chatLog');
-      el.innerHTML = msgs().map(m=>{
+      el.innerHTML = msgs().filter(m=> !isMuted() || m.type==='move' || m.from===o.deviceId).map(m=>{
         const h = o.renderMessage && o.renderMessage(m);
         return h!==undefined && h!==null ? h : defaultHtml(m);
       }).join('');
@@ -225,12 +230,14 @@
       const list = msgs();
       if(open){ renderLog(); lastSeen = list.length; return; }
       const unseen = list.length - lastSeen;
-      if(unseen>0){
+      if(unseen>0 && !isMuted()){
         const badge = $('chatBadge');
         badge.textContent = unseen>9 ? '9+' : String(unseen);
         badge.classList.remove('hidden');
         const newest = list[list.length-1];
-        if(newest && newest.from!==o.deviceId){
+        const nk = newest ? keyOf(list, list.length-1) : null;
+        if(newest && newest.from!==o.deviceId && !seenSet().includes(nk)){
+          markSeen(nk);
           const p = previewOf(newest);
           $('chatToastWho').textContent = p.who ? p.who+':' : '';
           $('chatToastText').textContent = p.text;
@@ -239,6 +246,7 @@
           toastTimer = setTimeout(()=> $('chatToast').classList.add('hidden'), 5000);
         }
       } else $('chatBadge').classList.add('hidden');
+      if(unseen>0 && isMuted()) lastSeen = list.length;
     }
     // A brief message in the toast slot (also used by games for "can't do that" hints).
     function flash(msg, ms){
@@ -303,6 +311,7 @@
     $('chatInput').addEventListener('keydown', e=>{ if(e.key==='Enter'){ const i=$('chatInput'); send(i.value); i.value=''; } });
     if(o.onLogClick) $('chatLog').addEventListener('click', o.onLogClick);
 
+    window.addEventListener('sg-mute', ()=>{ if(isMuted()) $('chatToast').classList.add('hidden'); if(open) renderLog(); });
     return {render, toggle, send, sendMessage, flash, isOpen: ()=>open};
   };
 

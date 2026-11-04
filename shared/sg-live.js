@@ -35,11 +35,15 @@
     o.connect(g); g.connect(c.destination); o.start(t); o.stop(t+dur+0.02);
   }
   var lastTick = 0;
+  // block / silence: chat messages and quick reactions from other players (saved on this device)
+  SG.mute = {chat: lsGet('sg_mute_chat')==='1', react: lsGet('sg_mute_react')==='1'};
   SG.sfx = {
     tick: function(){ var n=Date.now(); if(n-lastTick<40) return; lastTick=n; tone(620,0.06,'triangle',0.05,0,420); },
     turn: function(){ tone(660,0.14,'sine',0.09,0); tone(880,0.2,'sine',0.09,0.12); },
     react: function(){ tone(520,0.09,'sine',0.05,0,900); },
     error: function(){ tone(180,0.15,'sawtooth',0.05,0,120); },
+    low30: function(){ tone(740,0.12,'sine',0.045,0); },
+    low10: function(){ tone(1180,0.09,'square',0.05,0); tone(1180,0.09,'square',0.05,0.13); },
     win: function(){ [523,659,784,1047].forEach(function(f,i){ tone(f,0.28,'triangle',0.09,i*0.12); }); tone(1319,0.7,'sine',0.08,0.5); tone(1047,0.7,'sine',0.06,0.5); },
     get muted(){ return muted; },
     setMuted: function(m){ muted = !!m; lsSet('sg_mute', m?'1':'0'); paintTools(); }
@@ -55,11 +59,14 @@
 
   // ---------------- small tools: sound + alerts toggles ----------------
   var tools = document.createElement('div'); tools.className = 'sg-tools';
-  tools.innerHTML = '<button type="button" class="sg-tool" id="sgSnd" aria-label="Sound"></button><button type="button" class="sg-tool" id="sgNote" aria-label="Turn alerts"></button>';
+  tools.innerHTML = '<button type="button" class="sg-tool" id="sgSnd" aria-label="Sound"></button><button type="button" class="sg-tool" id="sgNote" aria-label="Turn alerts"></button><button type="button" class="sg-tool" id="sgMChat" aria-label="Silence chat"></button><button type="button" class="sg-tool" id="sgMReact" aria-label="Silence reactions"></button>';
   function notifState(){ return ('Notification' in window) ? Notification.permission : 'unsupported'; }
   function paintTools(){
     var s = document.getElementById('sgSnd'), n = document.getElementById('sgNote'); if(!s||!n) return;
     s.textContent = muted ? '🔇' : '🔊'; s.title = muted ? 'Sound off — tap to turn on' : 'Sound on — tap to mute';
+    var mc = document.getElementById('sgMChat'), mr = document.getElementById('sgMReact');
+    if(mc){ mc.textContent = SG.mute.chat ? '🙊' : '💬'; mc.classList.toggle('off', SG.mute.chat); mc.title = SG.mute.chat ? 'Chat silenced — tap to show messages again' : 'Tap to silence chat'; }
+    if(mr){ mr.textContent = SG.mute.react ? '😶' : '😀'; mr.classList.toggle('off', SG.mute.react); mr.title = SG.mute.react ? 'Reactions silenced — tap to show them again' : 'Tap to silence reactions'; }
     var p = notifState(); n.style.display = p==='unsupported' ? 'none' : '';
     n.textContent = p==='granted' ? '🔔' : '🔕'; n.title = p==='granted' ? 'Turn alerts on' : p==='denied' ? 'Alerts are blocked in your browser settings' : 'Tap to get an alert when it is your turn';
   }
@@ -67,6 +74,13 @@
     if(document.getElementById('sgSnd')) return;
     document.body.appendChild(tools); paintTools();
     document.getElementById('sgSnd').addEventListener('click', function(){ SG.sfx.setMuted(!muted); if(!muted) SG.sfx.turn(); });
+    document.getElementById('sgMChat').addEventListener('click', function(){
+      SG.mute.chat = !SG.mute.chat; lsSet('sg_mute_chat', SG.mute.chat?'1':'0'); paintTools();
+      try{ window.dispatchEvent(new Event('sg-mute')); }catch(e){}
+    });
+    document.getElementById('sgMReact').addEventListener('click', function(){
+      SG.mute.react = !SG.mute.react; lsSet('sg_mute_react', SG.mute.react?'1':'0'); paintTools(); paintReactMute();
+    });
     document.getElementById('sgNote').addEventListener('click', function(){
       if(!('Notification' in window) || Notification.permission!=='default') return;
       Notification.requestPermission().then(paintTools).catch(function(){});
@@ -89,7 +103,8 @@
   // ---------------- emoji reactions ----------------
   var EMOJIS = ['👏','😂','😮','🔥','🤔','😭'], lastK, lastSent = 0, reactRef = null;
   var fab = document.createElement('div'); fab.className = 'sg-react hidden';
-  fab.innerHTML = '<div class="sg-react-tray hidden">'+EMOJIS.map(function(e){ return '<button type="button" class="sg-react-btn" data-e="'+e+'">'+e+'</button>'; }).join('')+'</div><button type="button" class="sg-react-btn sg-react-main" aria-label="Send a reaction">😀</button>';
+  fab.innerHTML = '<div class="sg-react-tray hidden">'+EMOJIS.map(function(e){ return '<button type="button" class="sg-react-btn" data-e="'+e+'">'+e+'</button>'; }).join('')+'</div><button type="button" class="sg-react-btn sg-react-main" aria-label="Send a reaction"><span class="sg-react-face">😀</span><span class="sg-react-clock hidden"></span></button>';
+  function paintReactMute(){ fab.classList.toggle('muted', SG.mute.react); var f = fab.querySelector('.sg-react-face'); if(f) f.textContent = SG.mute.react ? '😶' : '😀'; if(SG.mute.react) fab.querySelector('.sg-react-tray').classList.add('hidden'); }
   function send(e){
     var n = Date.now(); if(n-lastSent<1200 || !reactRef) return; lastSent = n;
     try{ reactRef.update({reaction:{e:e, by:SG.getDeviceId(), t:n, k:n+'-'+Math.random().toString(36).slice(2,6)}}); }catch(x){}
@@ -98,6 +113,7 @@
   }
   fab.addEventListener('click', function(ev){
     var b = ev.target.closest('.sg-react-btn'); if(!b) return;
+    if(b.classList.contains('sg-react-main')){ if(SG.mute.react){ SG.mute.react = false; lsSet('sg_mute_react','0'); paintTools(); paintReactMute(); return; } }
     if(b.classList.contains('sg-react-main')) fab.querySelector('.sg-react-tray').classList.toggle('hidden');
     else send(b.dataset.e);
   });
@@ -192,6 +208,22 @@
   };
 
   // ---------------- one call from each game's render() ----------------
+  // ---------------- turn clock on the reaction button + low-time sounds ----------------
+  var myTurnNow = false, lowDl = null, low30Done = false, lastLow = -1;
+  var _rtt = SG.renderTurnTimer;
+  if(_rtt) SG.renderTurnTimer = function(el, deadline, active){
+    var secs = _rtt.call(SG, el, deadline, active);
+    var ck = fab.querySelector('.sg-react-clock');
+    if(secs===null || secs===undefined){ if(ck) ck.classList.add('hidden'); return secs; }
+    if(ck){ ck.textContent = secs; ck.classList.remove('hidden'); ck.classList.toggle('low', secs<=10); }
+    if(deadline!==lowDl){ lowDl = deadline; low30Done = false; lastLow = -1; }
+    if(myTurnNow && active){
+      if(secs<=30 && secs>10 && !low30Done){ low30Done = true; SG.sfx.low30(); }
+      else if(secs<=10 && secs>0 && secs!==lastLow){ lastLow = secs; if(secs===10) low30Done = true; SG.sfx.low10(); SG.vibrate(30); }
+    }
+    return secs;
+  };
+
   // SG.live({online, roomRef, reaction, active, myTurn})
   //   active = a game is in progress for this viewer; myTurn = it is this device's turn
   SG.live = function(o){
@@ -202,8 +234,10 @@
     fab.classList.toggle('hidden', !showFab);
     var r = o.reaction;
     if(r && r.k){
-      if(lastK===undefined){ lastK = r.k; }                       // don't replay an old reaction on load
-      else if(r.k!==lastK){ lastK = r.k; if(r.by!==SG.getDeviceId()) float(r.e); }
+      if(r.k!==lastK){                                            // each reaction shows once; old ones (page load) are skipped by age
+        lastK = r.k;
+        if(r.by!==SG.getDeviceId() && !SG.mute.react && Math.abs(Date.now()-(r.t||0))<30000) float(r.e);
+      }
     }
     if(o.rematch) paintRematch(o.rematch);
     if(o.result && o.result.over && o.result.game) SG.stats.record(o.result.game, o.result.won, o.result.key);
@@ -211,7 +245,9 @@
     if(o.spectator){
       if(!sp){ sp = document.createElement('div'); sp.id = 'sgSpectate'; sp.className = 'sg-spectate'; sp.textContent = '👀 Spectating — you can watch and react'; document.body.appendChild(sp); }
     } else if(sp) sp.remove();
+    paintReactMute();
     var mine = !!(o.online && o.active && o.myTurn);
+    myTurnNow = mine;
     if(wasMine===undefined){ wasMine = mine; }
     else { if(mine && !wasMine) yourTurn(); wasMine = mine; }
   };
@@ -223,7 +259,9 @@
    '.sg-tool{width:34px; height:34px; border-radius:50%; padding:0; font-size:15px; line-height:1; cursor:pointer; color:#fff;'+
      'background:rgba(20,24,40,.7); border:1px solid rgba(255,255,255,.14); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);}'+
    '.sg-tool:hover{border-color:rgba(245,179,66,.6);}'+
-   '.sg-react{position:fixed; right:22px; bottom:92px; z-index:59; display:flex; flex-direction:column; align-items:flex-end; gap:8px;}'+
+   '.sg-react{position:fixed; right:90px; bottom:29px; z-index:59; display:flex; flex-direction:row; align-items:center; gap:8px;}'+
+   '.sg-react-main{position:relative;} .sg-react-clock{position:absolute; top:-7px; left:-7px; min-width:22px; height:18px; padding:0 4px; border-radius:9px; font:700 11px/18px "Space Grotesk",sans-serif; color:#fff; background:#2a3150; border:1px solid rgba(255,255,255,.2); text-align:center;} .sg-react-clock.low{background:#d8453b; animation:sgPulse .8s infinite;} @keyframes sgPulse{50%{transform:scale(1.18);}}'+
+   '.sg-react.muted .sg-react-main{opacity:.55;} .sg-tool.off{opacity:.6; border-color:rgba(224,72,62,.6);}'+
    '.sg-react.hidden,.sg-react-tray.hidden{display:none !important;}'+
    '.sg-react-main{width:44px; height:44px; border-radius:50%; padding:0; font-size:20px; cursor:pointer; background:rgba(20,24,40,.8); border:1px solid rgba(255,255,255,.16); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);}'+
    '.sg-react-tray{display:flex; gap:4px; padding:6px; border-radius:26px; background:rgba(14,18,32,.92); border:1px solid rgba(255,255,255,.14); box-shadow:0 12px 30px -8px rgba(0,0,0,.8);}'+
@@ -232,7 +270,7 @@
    '.sg-float{position:fixed; bottom:-60px; z-index:90; pointer-events:none; animation:sgFloat 3.1s ease-out forwards; filter:drop-shadow(0 6px 10px rgba(0,0,0,.5));}'+
    '@keyframes sgFloat{0%{transform:translateY(0) scale(.6); opacity:0;} 12%{opacity:1; transform:translateY(-12vh) scale(1.1);} 100%{transform:translateY(-82vh) translateX(18px) scale(1); opacity:0;}}'+
    '.sg-spectate{position:fixed; left:50%; bottom:14px; transform:translateX(-50%); z-index:57; padding:8px 14px; border-radius:999px; font-size:12px; font-weight:600; color:#fff; white-space:nowrap; background:rgba(20,24,40,.85); border:1px solid rgba(70,210,240,.45); box-shadow:0 0 18px -4px rgba(70,210,240,.6); backdrop-filter:blur(10px);}'+
-   '@media (max-width:820px){.sg-react{right:16px; bottom:84px;} .sg-spectate{bottom:84px; font-size:11px;}}'+
+   '@media (max-width:820px){.sg-react{right:84px; bottom:23px;} .sg-spectate{bottom:84px; font-size:11px;}}'+
    '@media (prefers-reduced-motion: reduce){.sg-float{animation-duration:1.4s;}}';
   document.head.appendChild(css);
 })();
