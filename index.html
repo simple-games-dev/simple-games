@@ -313,8 +313,8 @@
 
 <nav class="marquee" aria-label="Jump to a game">
   <div class="track">
-    <a href="games/merchants/">Gem Merchants</a><a href="games/ascent/">Ascent</a><a href="games/hedgerow/">Hedgerow</a><a href="games/ghosts/">Ghosts</a><a href="games/colonist/">Colonist</a><a href="games/chess/">Tempo Chess</a>
-    <a href="games/merchants/" aria-hidden="true" tabindex="-1">Gem Merchants</a><a href="games/ascent/" aria-hidden="true" tabindex="-1">Ascent</a><a href="games/hedgerow/" aria-hidden="true" tabindex="-1">Hedgerow</a><a href="games/ghosts/" aria-hidden="true" tabindex="-1">Ghosts</a><a href="games/colonist/" aria-hidden="true" tabindex="-1">Colonist</a><a href="games/chess/" aria-hidden="true" tabindex="-1">Tempo Chess</a>
+    <a href="games/merchants/">Gem Merchants</a><a href="games/ascent/">Ascent</a><a href="games/hedgerow/">Hedgerow</a><a href="games/ghosts/">Ghosts</a><a href="games/colonist/">Colonist</a><a href="games/chess/">Tempo Chess</a><a href="games/firewater/">Fire &amp; Water</a><a href="games/sparkle/">Sparkle</a><a href="games/lockdown/">Lockdown</a><a href="games/blindmaze/">Blind Maze</a><a href="games/mindmeld/">Mindmeld</a><a href="games/outbreak/">Outbreak</a>
+    <a href="games/merchants/" aria-hidden="true" tabindex="-1">Gem Merchants</a><a href="games/ascent/" aria-hidden="true" tabindex="-1">Ascent</a><a href="games/hedgerow/" aria-hidden="true" tabindex="-1">Hedgerow</a><a href="games/ghosts/" aria-hidden="true" tabindex="-1">Ghosts</a><a href="games/colonist/" aria-hidden="true" tabindex="-1">Colonist</a><a href="games/chess/" aria-hidden="true" tabindex="-1">Tempo Chess</a><a href="games/firewater/" aria-hidden="true" tabindex="-1">Fire &amp; Water</a><a href="games/sparkle/" aria-hidden="true" tabindex="-1">Sparkle</a><a href="games/lockdown/" aria-hidden="true" tabindex="-1">Lockdown</a><a href="games/blindmaze/" aria-hidden="true" tabindex="-1">Blind Maze</a><a href="games/mindmeld/" aria-hidden="true" tabindex="-1">Mindmeld</a><a href="games/outbreak/" aria-hidden="true" tabindex="-1">Outbreak</a>
   </div>
 </nav>
 
@@ -328,12 +328,13 @@
     <div class="toolbar rv">
       <div class="chips" id="chips" role="tablist" aria-label="Filter games">
         <button class="chip on" data-f="all">All games</button>
+        <button class="chip" data-f="coop">Co-op</button>
         <button class="chip" data-f="strategy">Strategy</button>
         <button class="chip" data-f="classic">Classic</button>
         <button class="chip" data-f="hidden">Hidden info</button>
         <button class="chip" data-f="3d">3D</button>
       </div>
-      <div class="count" id="count">6 games</div>
+      <div class="count" id="count">12 games</div>
     </div>
 
     <main class="grid" id="grid">
@@ -400,6 +401,73 @@
           <h2>Tempo Chess</h2>
           <p>The classic, with the clock running. Online or over the board, with premoves, move highlights and a sudden-death finish.</p>
           <div class="tags"><span class="tag">Classic</span><span class="tag">Timed</span></div>
+          <div class="play"><span>Play now</span><span class="go"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></div>
+        </div>
+      </a>
+
+
+      <a class="game rv" style="--d:0.00s" href="games/firewater/" data-t="coop puzzle" data-name="Fire &amp; Water">
+        <div class="art"><img src="images/firewater.jpg" alt="Fire &amp; Water artwork" width="1312" height="784" loading="lazy">
+          <div class="meta"><span class="pill new">CO-OP</span><span class="pill"><svg viewBox="0 0 16 16"><circle cx="8" cy="5" r="3"/><path d="M2 14c0-3 3-5 6-5s6 2 6 5z"/></svg>2</span></div></div>
+        <div class="body">
+          <h2>Fire &amp; Water</h2>
+          <p>Two heroes, one exit. Open doors for each other, dodge what hurts your partner and walk out together.</p>
+          <div class="tags"><span class="tag">Puzzle</span><span class="tag">Turn-free</span></div>
+          <div class="play"><span>Play now</span><span class="go"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></div>
+        </div>
+      </a>
+
+      <a class="game rv" style="--d:0.08s" href="games/sparkle/" data-t="coop hidden" data-name="Sparkle">
+        <div class="art"><img src="images/sparkle.jpg" alt="Sparkle artwork" width="1312" height="784" loading="lazy">
+          <div class="meta"><span class="pill new">CO-OP</span><span class="pill"><svg viewBox="0 0 16 16"><circle cx="8" cy="5" r="3"/><path d="M2 14c0-3 3-5 6-5s6 2 6 5z"/></svg>2–5</span></div></div>
+        <div class="body">
+          <h2>Sparkle</h2>
+          <p>Launch five fireworks as a team. You see everyone’s cards but your own — help with clues, trust the hints.</p>
+          <div class="tags"><span class="tag">Card game</span><span class="tag">Hidden info</span></div>
+          <div class="play"><span>Play now</span><span class="go"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></div>
+        </div>
+      </a>
+
+      <a class="game rv" style="--d:0.16s" href="games/lockdown/" data-t="coop puzzle hidden" data-name="Lockdown">
+        <div class="art"><img src="images/lockdown.jpg" alt="Lockdown artwork" width="1312" height="784" loading="lazy">
+          <div class="meta"><span class="pill new">CO-OP</span><span class="pill"><svg viewBox="0 0 16 16"><circle cx="8" cy="5" r="3"/><path d="M2 14c0-3 3-5 6-5s6 2 6 5z"/></svg>2–4</span></div></div>
+        <div class="body">
+          <h2>Lockdown</h2>
+          <p>An escape room where nobody sees the whole puzzle. Describe, decode, crack the code before the clock runs out.</p>
+          <div class="tags"><span class="tag">Escape room</span><span class="tag">Talk it out</span></div>
+          <div class="play"><span>Play now</span><span class="go"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></div>
+        </div>
+      </a>
+
+      <a class="game rv" style="--d:0.00s" href="games/blindmaze/" data-t="coop puzzle hidden" data-name="Blind Maze">
+        <div class="art"><img src="images/blindmaze.jpg" alt="Blind Maze artwork" width="1312" height="784" loading="lazy">
+          <div class="meta"><span class="pill new">CO-OP</span><span class="pill"><svg viewBox="0 0 16 16"><circle cx="8" cy="5" r="3"/><path d="M2 14c0-3 3-5 6-5s6 2 6 5z"/></svg>2–4</span></div></div>
+        <div class="body">
+          <h2>Blind Maze</h2>
+          <p>The walker is in the fog, the guide sees the traps, the cartographer sees the walls. Three views, one way out.</p>
+          <div class="tags"><span class="tag">Maze</span><span class="tag">Asymmetric</span></div>
+          <div class="play"><span>Play now</span><span class="go"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></div>
+        </div>
+      </a>
+
+      <a class="game rv" style="--d:0.08s" href="games/mindmeld/" data-t="coop" data-name="Mindmeld">
+        <div class="art"><img src="images/mindmeld.jpg" alt="Mindmeld artwork" width="1312" height="784" loading="lazy">
+          <div class="meta"><span class="pill new">CO-OP</span><span class="pill"><svg viewBox="0 0 16 16"><circle cx="8" cy="5" r="3"/><path d="M2 14c0-3 3-5 6-5s6 2 6 5z"/></svg>2–5</span></div></div>
+        <div class="body">
+          <h2>Mindmeld</h2>
+          <p>No talking. Play your numbered cards in ascending order as a team — by feel alone.</p>
+          <div class="tags"><span class="tag">Cards</span><span class="tag">Silent</span></div>
+          <div class="play"><span>Play now</span><span class="go"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></div>
+        </div>
+      </a>
+
+      <a class="game rv" style="--d:0.16s" href="games/outbreak/" data-t="coop strategy" data-name="Outbreak">
+        <div class="art"><img src="images/outbreak.jpg" alt="Outbreak artwork" width="1312" height="784" loading="lazy">
+          <div class="meta"><span class="pill new">CO-OP</span><span class="pill"><svg viewBox="0 0 16 16"><circle cx="8" cy="5" r="3"/><path d="M2 14c0-3 3-5 6-5s6 2 6 5z"/></svg>2–4</span></div></div>
+        <div class="body">
+          <h2>Outbreak</h2>
+          <p>Four diseases are spreading. Travel, treat, share research and discover all four cures before the world falls.</p>
+          <div class="tags"><span class="tag">Strategy</span><span class="tag">Co-op</span></div>
           <div class="play"><span>Play now</span><span class="go"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></div>
         </div>
       </a>
@@ -506,7 +574,7 @@
 </script>
 <script>
 (function(){
-  var NAMES={merchants:'Gem Merchants',hedgerow:'Hedgerow',ghosts:'Ghosts',ascent:'Ascent',colonist:'Colonist',chess:'Chess'}, st={};
+  var NAMES={merchants:'Gem Merchants',hedgerow:'Hedgerow',ghosts:'Ghosts',ascent:'Ascent',colonist:'Colonist',chess:'Chess',firewater:'Fire & Water',sparkle:'Sparkle',lockdown:'Lockdown',blindmaze:'Blind Maze',mindmeld:'Mindmeld',outbreak:'Outbreak'}, st={};
   try{ st = JSON.parse(localStorage.getItem('sg_stats')||'{}')||{}; }catch(e){}
   var keys = Object.keys(st).filter(function(k){ return st[k] && st[k].played; });
   if(!keys.length) return;

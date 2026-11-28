@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Fire &amp; Water</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../shared/sg.css">
+<script src="../../shared/boot.js" data-libs="firebase"></script>
+<script src="../../shared/coop.js"></script>
+<script src="logic.js"></script>
+<style>
+  .fw-board{width:100%; height:auto; display:block; border-radius:12px; background:#080C18; touch-action:manipulation;}
+  .fw-hud{display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:10px; font-size:13px; color:var(--paper-dim); flex-wrap:wrap;}
+  .fw-hud b{color:var(--paper); font-family:'Space Grotesk',sans-serif;}
+  .fw-tip{font-size:13px; color:var(--paper-dim); margin:10px 2px 0; line-height:1.5;}
+  .fw-pad{display:grid; grid-template-columns:repeat(3,56px); grid-template-rows:repeat(2,52px); gap:6px; justify-content:center; margin:14px auto 0;}
+  .fw-pad button{padding:0; font-size:20px;} .fw-pad .up{grid-column:2;} .fw-pad .left{grid-column:1; grid-row:2;} .fw-pad .down{grid-column:2; grid-row:2;} .fw-pad .right{grid-column:3; grid-row:2;}
+  @keyframes fwb{50%{transform:translateY(-1.5px);}} .fw-hero{animation:fwb 1.4s ease-in-out infinite; transform-box:fill-box;}
+</style>
+</head>
+<body>
+<div id="coopRoot"></div>
+<script>
+(function(){
+  var COL = {fire:'#FF7A45', water:'#46D2F0'};
+  var bound = false, cur = {send:null, seat:-1, g:null};
+  function who(seat){ return seat===0 ? 'fire' : seat===1 ? 'water' : null; }
+  function cell(L, c, x, y, g){
+    var p = {fill:'#10172b'}, s = '';
+    if(c==='#') return '<rect x="'+x+'" y="'+y+'" width="1" height="1" fill="#26324F"/><rect x="'+(x+.06)+'" y="'+(y+.06)+'" width="0.88" height="0.88" rx=".12" fill="#1c2644"/>';
+    var out = '<rect x="'+x+'" y="'+y+'" width="1" height="1" fill="#0d1428"/><rect x="'+(x+.03)+'" y="'+(y+.03)+'" width=".94" height=".94" rx=".1" fill="#121b33"/>';
+    if(c==='~') out += '<rect x="'+x+'" y="'+y+'" width="1" height="1" fill="#1f7fb8" opacity=".85"/><path d="M'+x+' '+(y+.4)+' q.25 -.18 .5 0 t.5 0" stroke="#9be4ff" fill="none" stroke-width=".07"/>';
+    if(c==='^') out += '<rect x="'+x+'" y="'+y+'" width="1" height="1" fill="#d8431f" opacity=".9"/><path d="M'+x+' '+(y+.4)+' q.25 -.18 .5 0 t.5 0" stroke="#ffd37a" fill="none" stroke-width=".07"/>';
+    if(c==='x') out += '<rect x="'+x+'" y="'+y+'" width="1" height="1" fill="#3a8a2c" opacity=".95"/><circle cx="'+(x+.3)+'" cy="'+(y+.4)+'" r=".1" fill="#a3e36b"/><circle cx="'+(x+.68)+'" cy="'+(y+.65)+'" r=".14" fill="#a3e36b"/>';
+    if(c>='1' && c<='9') out += '<rect x="'+(x+.18)+'" y="'+(y+.58)+'" width=".64" height=".22" rx=".08" fill="'+DOORC[c]+'"/><text x="'+(x+.5)+'" y="'+(y+.5)+'" font-size=".34" fill="'+DOORC[c]+'" text-anchor="middle" font-weight="700">'+c+'</text>';
+    if(c>='A' && c<='C'){
+      var open = FW.doorOpen(c, FW.pressed(L, g.fire, g.water)), k = String(c.charCodeAt(0)-64);
+      out += open ? '<rect x="'+(x+.05)+'" y="'+y+'" width=".12" height="1" fill="'+DOORC[k]+'" opacity=".5"/><rect x="'+(x+.83)+'" y="'+y+'" width=".12" height="1" fill="'+DOORC[k]+'" opacity=".5"/>'
+                  : '<rect x="'+x+'" y="'+y+'" width="1" height="1" fill="'+DOORC[k]+'" opacity=".92"/><text x="'+(x+.5)+'" y="'+(y+.68)+'" font-size=".5" fill="#06080F" text-anchor="middle" font-weight="700">'+k+'</text>';
+    }
+    if(c==='f') out += '<rect x="'+(x+.1)+'" y="'+(y+.05)+'" width=".8" height=".9" rx=".35" fill="none" stroke="'+COL.fire+'" stroke-width=".09"/><text x="'+(x+.5)+'" y="'+(y+.68)+'" font-size=".5" text-anchor="middle">🚪</text>';
+    if(c==='w') out += '<rect x="'+(x+.1)+'" y="'+(y+.05)+'" width=".8" height=".9" rx=".35" fill="none" stroke="'+COL.water+'" stroke-width=".09"/><text x="'+(x+.5)+'" y="'+(y+.68)+'" font-size=".5" text-anchor="middle">🚪</text>';
+    return out;
+  }
+  var DOORC = {'1':'#F5B342','2':'#B98CE0','3':'#3FD9A0'};
+  function hero(p, who, active){
+    var c = COL[who], e = who==='fire' ? '🔥' : '💧';
+    return '<g class="fw-hero"><circle cx="'+(p[0]+.5)+'" cy="'+(p[1]+.5)+'" r=".38" fill="'+c+'" stroke="'+(active?'#fff':'none')+'" stroke-width=".07"/><text x="'+(p[0]+.5)+'" y="'+(p[1]+.68)+'" font-size=".48" text-anchor="middle">'+e+'</text></g>';
+  }
+  Coop.register({
+    id:'firewater', title:'Fire & Water', titleHtml:'Fire <span>&amp; Water</span>', icon:'🔥💧', accent:'#FF7A45',
+    tagline:'Two heroes, one exit. Neither can make it alone.',
+    pitch:'Guide Fire and Water through six rooms. Open doors for each other, dodge what hurts your partner, and walk out together.',
+    rooms:'fireWaterRooms', min:2, max:2, localMin:2, localMax:2, switchLabel:'Controlling', seatLabel:function(i){ return i===0 ? '🔥 Fire' : '💧 Water'; },
+    colors:[COL.fire, COL.water],
+    rules:'<p>Fire (🔥) and Water (💧) each walk one square at a time with the arrow keys / WASD or the on-screen pad. Both of you must stand on your own door at the same time.</p>'+
+      '<p><b>Hazards:</b> water pools put out Fire, lava burns Water, goo hurts both. Step in the wrong one and the room restarts.</p>'+
+      '<p><b>Buttons and doors:</b> a numbered button opens the door with the same number while someone stands on it. Take turns holding doors open for each other.</p>'+
+      '<p>Your own coloured gems are worth 10 points, each cleared room 50. On the same device, switch between heroes with the buttons or the Space bar.</p>',
+    init:function(n){ var g = FW.init(0, 0); return g; },
+    act:function(g, a, seat){
+      var w = who(seat); if(!w) return 'Only the two heroes can play.';
+      if(a.t==='move'){ var e = FW.move(g, w, a.dir); if(g.done) g.over = {win:true, text:'All '+FW.LEVELS.length+' rooms cleared! Score '+g.score+', falls '+g.deaths+'.'}; return e; }
+      if(a.t==='restart'){ var f = FW.init(g.level, g.score); g.fire = f.fire; g.water = f.water; g.got = []; g.log.push('Room restarted.'); return; }
+      return 'Unknown action.';
+    },
+    status:function(g, seat){
+      var L = FW.LEVELS[g.level];
+      return '<b>Room '+(g.level+1)+' of '+FW.LEVELS.length+': '+L.name+'</b><br>'+(seat<0 ? 'You are watching.' : 'You are '+(seat===0?'🔥 Fire':'💧 Water')+'. Get both heroes to their doors.');
+    },
+    role:function(g,i){ return i===0 ? '🔥 Fire' : '💧 Water'; },
+    render:function(el, g, seat, send, ctx){
+      var L = FW.level(g.level), meta = FW.LEVELS[g.level];
+      cur = {send:send, seat:seat, g:g, over:ctx.over};
+      var h = '<div class="fw-hud"><span>Room <b>'+(g.level+1)+'/'+FW.LEVELS.length+'</b> · '+meta.name+'</span><span>Score <b>'+g.score+'</b> · Falls <b>'+g.deaths+'</b></span></div>';
+      h += '<svg class="fw-board" viewBox="0 0 '+L.w+' '+L.h+'" role="img" aria-label="Game board">';
+      for(var y=0;y<L.h;y++) for(var x=0;x<L.w;x++) h += cell(L, L.cells[y][x], x, y, g);
+      L.gems.forEach(function(gm,i){ if(g.got.indexOf(i)<0) h += '<text x="'+(gm[0]+.5)+'" y="'+(gm[1]+.72)+'" font-size=".6" text-anchor="middle">'+(gm[2]==='r'?'🔶':'🔷')+'</text>'; });
+      h += hero(g.fire,'fire', seat===0) + hero(g.water,'water', seat===1) + '</svg>';
+      h += '<p class="fw-tip">💡 '+meta.tip+'</p>';
+      if(!ctx.over){
+        h += '<div class="fw-pad">'+['up','left','down','right'].map(function(d){ return '<button class="secondary '+d+'" data-d="'+d+'" aria-label="'+d+'">'+({up:'↑',down:'↓',left:'←',right:'→'})[d]+'</button>'; }).join('')+'</div>'+
+             '<div style="text-align:center;margin-top:10px"><button class="secondary" id="fwRestart" style="font-size:12.5px;padding:7px 12px">↺ Restart room</button></div>';
+      }
+      el.innerHTML = h;
+      el.querySelectorAll('[data-d]').forEach(function(b){ b.onclick = function(){ send({t:'move', dir:b.dataset.d}); }; });
+      var rb = el.querySelector('#fwRestart'); if(rb) rb.onclick = function(){ send({t:'restart'}); };
+      if(!bound){
+        bound = true;
+        document.addEventListener('keydown', function(e){
+          if(!cur.send || cur.over || /INPUT|TEXTAREA/.test((e.target||{}).tagName||'')) return;
+          var m = {ArrowUp:'up',ArrowDown:'down',ArrowLeft:'left',ArrowRight:'right',w:'up',s:'down',a:'left',d:'right',W:'up',S:'down',A:'left',D:'right'}[e.key];
+          if(m){ e.preventDefault(); cur.send({t:'move', dir:m}); }
+          else if(e.key===' ' && window.__coop && window.__coop.state().n && !window.__coop.state().seats[0].indexOf('local')){ e.preventDefault(); window.__coop.setSeat(window.__coop.seat()===0?1:0); }
+        });
+      }
+    }
+  });
+})();
+</script>
+</body>
+</html>

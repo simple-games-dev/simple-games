@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Outbreak</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../shared/sg.css">
+<script src="../../shared/boot.js" data-libs="firebase"></script>
+<script src="../../shared/coop.js"></script>
+<script src="logic.js"></script>
+<style>
+  .ob-tracks{display:flex; gap:14px; flex-wrap:wrap; align-items:center; justify-content:space-between; margin-bottom:10px; font-size:12.5px; color:var(--paper-dim);}
+  .ob-tracks b{color:var(--paper); font-family:'Space Grotesk',sans-serif;}
+  .ob-pips{display:inline-flex; gap:3px; vertical-align:middle;} .ob-pips i{width:10px; height:10px; border-radius:50%; background:#26324F;} .ob-pips i.on{background:var(--danger); box-shadow:0 0 8px var(--danger);}
+  .ob-cures{display:inline-flex; gap:6px;} .ob-cure{width:22px; height:22px; border-radius:7px; display:inline-flex; align-items:center; justify-content:center; font-size:12px; border:2px solid; opacity:.5;} .ob-cure.on{opacity:1; box-shadow:0 0 12px -2px currentColor;}
+  .ob-map{width:100%; display:block; border-radius:12px; background:#080C18; touch-action:manipulation;}
+  .ob-city{cursor:pointer;} .ob-city:hover circle.base{stroke:#fff;}
+  .ob-panel{margin-top:12px; padding:12px; border-radius:12px; background:var(--raise); border:1px solid var(--hair); font-size:13.5px; line-height:1.55;}
+  .ob-panel h4{margin:0 0 8px; font-size:14px; font-family:'Space Grotesk',sans-serif;}
+  .ob-row{display:flex; gap:7px; flex-wrap:wrap; margin-top:6px;} .ob-row button{padding:8px 11px; font-size:12.5px;}
+  .ob-hand{display:flex; gap:7px; flex-wrap:wrap; margin-top:10px;}
+  .ob-card{padding:7px 10px; border-radius:9px; font-size:12.5px; font-weight:600; border:2px solid; background:#10172b; text-align:center; min-width:62px;} .ob-card small{display:block; font-weight:400; opacity:.7; font-size:10.5px;}
+  .ob-card.click{cursor:pointer;} .ob-card.click:hover{filter:brightness(1.3);}
+  .ob-acts{font-size:13px; margin:10px 0 0; display:flex; gap:10px; align-items:center; flex-wrap:wrap;} .ob-acts b{color:var(--accent);}
+  .ob-mates{margin-top:12px; display:grid; gap:6px; font-size:12px; color:var(--paper-dim);} .ob-mate{padding:7px 10px; border-radius:9px; background:var(--inset); border:1px solid var(--hair);} .ob-mate b{color:var(--paper);}
+</style>
+</head>
+<body>
+<div id="coopRoot"></div>
+<script>
+(function(){
+  var D = OB.DISEASES, C = OB.CITIES, sel = null, selKey = '';
+  var esc = function(s){ return SG.escapeHtml(s); };
+  function cardChip(c, extra, cls){ var col = D[C[c][1]].h; return '<div class="ob-card '+(cls||'')+'" style="border-color:'+col+'; color:'+col+'" '+(extra||'')+'>'+C[c][0]+'<small>'+D[C[c][1]].n+'</small></div>'; }
+  function map(g, seat, ctx){
+    var h = '<svg class="ob-map" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet" role="img" aria-label="World map">';
+    OB.EDGES.forEach(function(e){ var a = C[e[0]], b = C[e[1]]; h += '<line x1="'+a[2]+'" y1="'+a[3]+'" x2="'+b[2]+'" y2="'+b[3]+'" stroke="#26324F" stroke-width=".7"/>'; });
+    var near = {}; if(seat>=0){ var p = g.pos[seat]; OB.ADJ[p].forEach(function(n){ near[n] = 1; }); }
+    C.forEach(function(c,i){
+      var d = D[c[1]], on = sel===i;
+      h += '<g class="ob-city" data-c="'+i+'"><circle class="base" cx="'+c[2]+'" cy="'+c[3]+'" r="4" fill="'+d.h+'22" stroke="'+(on?'#fff':d.h)+'" stroke-width="'+(on?1.1:.7)+'"'+(near[i]?' stroke-dasharray="1.2 .8"':'')+'/>'+
+        '<text x="'+c[2]+'" y="'+(c[3]-5.2)+'" font-size="2.7" fill="#cfd6ee" text-anchor="middle">'+c[0]+'</text>';
+      var k = 0; for(var col=0;col<4;col++) for(var n=0;n<g.cubes[i][col];n++){ var cx = c[2]-4.4+ (k%6)*1.7, cy = c[3]+5.2+Math.floor(k/6)*1.8; h += '<rect x="'+cx+'" y="'+cy+'" width="1.4" height="1.4" rx=".3" fill="'+D[col].h+'"/>'; k++; }
+      if(k===0) h += '<circle cx="'+c[2]+'" cy="'+c[3]+'" r="1" fill="'+d.h+'" opacity=".5"/>';
+      g.pos.forEach(function(pp, s){ if(pp===i){ var same = g.pos.slice(0,s).filter(function(x){ return x===i; }).length; h += '<circle cx="'+(c[2]-2.2+same*3.1)+'" cy="'+(c[3]-0.2)+'" r="1.7" fill="'+ctx.colorOf(s)+'" stroke="#fff" stroke-width=".35"/><text x="'+(c[2]-2.2+same*3.1)+'" y="'+(c[3]+.55)+'" font-size="2" fill="#06080F" font-weight="700" text-anchor="middle">'+(s+1)+'</text>'; } });
+      h += '</g>';
+    });
+    return h + '</svg>';
+  }
+  function actionPanel(g, seat, send, ctx){
+    if(seat<0) return '<div class="ob-panel">You are watching.</div>';
+    var mine = g.turn===seat, p = g.pos[seat], me = g.roles[seat], role = OB.ROLES.filter(function(r){ return r.id===me; })[0], h = '';
+    h += '<div class="ob-panel"><h4>'+esc(role.n)+' <span style="font-weight:400;color:var(--paper-dim);font-size:12.5px">— '+esc(role.d)+'</span></h4>';
+    if(g.phase==='discard' && mine){
+      h += '<b>Hand limit 7:</b> tap a card to discard it.';
+    } else if(!mine){
+      h += 'Waiting for <b>'+esc(ctx.nameOf(g.turn))+'</b>… Plan together in the chat!';
+    } else {
+      h += '<div class="ob-acts">Actions left: <b>'+g.actions+'</b> · you are in <b>'+C[p][0]+'</b></div>';
+      var row = '';
+      for(var k=0;k<4;k++) if(g.cubes[p][k]) row += '<button data-treat="'+k+'" style="background:'+D[k].h+'; color:#1a1204">Treat '+D[k].n+' ('+g.cubes[p][k]+')</button>';
+      for(k=0;k<4;k++){ if(!g.cured[k]){ var n = g.hands[seat].filter(function(c){ return C[c][1]===k; }).length, need = OB.needFor(g, seat);
+          if(n>=need) row += '<button data-cure="'+k+'" style="border:2px solid '+D[k].h+'">🧪 Cure '+D[k].n+'</button>'; } }
+      for(var o=0;o<g.n;o++) if(o!==seat && g.pos[o]===p){
+        if(g.hands[seat].indexOf(p)>=0) row += '<button class="secondary" data-share="give" data-w="'+o+'" data-card="'+p+'">Give '+C[p][0]+' → P'+(o+1)+'</button>';
+        if(g.hands[o].indexOf(p)>=0) row += '<button class="secondary" data-share="take" data-w="'+o+'" data-card="'+p+'">Take '+C[p][0]+' ← P'+(o+1)+'</button>';
+      }
+      if(me==='courier') for(o=0;o<g.n;o++) if(o!==seat && g.pos[o]!==p) g.hands[seat].forEach(function(c){ row += '<button class="secondary" data-share="give" data-w="'+o+'" data-card="'+c+'" style="font-size:11.5px">✉ '+C[c][0]+' → P'+(o+1)+'</button>'; });
+      if(sel!==null && sel!==p){
+        var d = OB.dist(p, sel), name = C[sel][0];
+        if(d===1 || (me==='scout' && d===2)) row += '<button data-move="'+sel+'">🚶 Walk to '+name+'</button>';
+        if(g.hands[seat].indexOf(sel)>=0) row += '<button data-direct="'+sel+'">✈ Fly to '+name+' (use card)</button>';
+        if(g.hands[seat].indexOf(p)>=0) row += '<button data-charter="'+sel+'">🛩 Charter to '+name+' (use '+C[p][0]+')</button>';
+        if(!row) row = '';
+      }
+      h += '<div class="ob-row">'+row+'<button class="secondary" data-pass>End turn</button></div>';
+      if(sel===null || sel===p) h += '<p style="margin:8px 0 0;color:var(--paper-dim);font-size:12.5px">Tap a city on the map to travel there.</p>';
+    }
+    h += '</div>';
+    return h;
+  }
+  Coop.register({
+    id:'outbreak', title:'Outbreak', titleHtml:'Out<span>break</span>', icon:'🧪', accent:'#3FD9A0',
+    tagline:'Four diseases. One team. Cure them all before the world falls.',
+    pitch:'Travel the map, treat the sick, share research cards and discover four cures — while new outbreaks flare up after every turn.',
+    rooms:'outbreakRooms', min:2, max:4, localMin:2, localMax:3, switchLabel:'Playing as', seatLabel:function(i){ return 'Player '+(i+1); },
+    options:[{key:'epidemics', label:'Difficulty', choices:[[3,'Easy · 3 epidemics'],[4,'Normal · 4'],[5,'Hard · 5']], def:4}],
+    rules:'<p>Four diseases (colours) spread across 16 cities. Cure all four to win. You lose if <b>8 outbreaks</b> happen, a disease runs out of cubes, or the player deck runs out.</p>'+
+      '<p>On your turn you have <b>4 actions</b>: <b>walk</b> to a neighbouring city; <b>fly</b> to a city by discarding its card; <b>charter</b> anywhere by discarding the card of the city you stand in; <b>treat</b> a disease (remove 1 cube); <b>share</b> the card of the city you are in with a teammate who is also there; or <b>cure</b> a disease by discarding 4 cards of its colour (3 with 3–4 players). Tap a city on the map to travel.</p>'+
+      '<p>Then you draw 2 cards (epidemics are hidden in the deck: they flood a city and speed things up), and the infection step adds cubes. A city with 3 cubes that would get another <b>outbreaks</b> and spreads to its neighbours. Hand limit: 7.</p>'+
+      '<p>Roles: <b>Medic</b> clears a whole colour per treat; <b>Scientist</b> needs one card fewer for a cure; <b>Courier</b> passes cards at any distance; <b>Scout</b> walks two links per action. Everybody’s cards are public — talk it through!</p>',
+    init:function(n, o){ return OB.init(n, o); },
+    act:function(g, a, seat){ return OB.act(g, a, seat); },
+    myTurn:function(g, seat){ return g.turn===seat && !g.over; },
+    role:function(g,i){ var r = OB.ROLES.filter(function(x){ return x.id===g.roles[i]; })[0]; return (g.turn===i && !g.over ? '▶ ' : '')+r.n; },
+    status:function(g, seat){
+      return '<b>'+(g.turn===seat ? 'Your turn' : 'Player '+(g.turn+1)+'’s turn')+'</b> · '+g.actions+' action'+(g.actions===1?'':'s')+' left<br>Outbreaks <b>'+g.outbreaks+'/8</b> · deck '+g.pdeck.length;
+    },
+    render:function(el, g, seat, send, ctx){
+      var key = ctx.nameOf(0)+':'+g.turn; if(selKey!==key){ selKey = key; sel = null; }
+      var h = '<div class="ob-tracks"><span>Outbreaks <span class="ob-pips">'+[0,1,2,3,4,5,6,7].map(function(i){ return '<i class="'+(i<g.outbreaks?'on':'')+'"></i>'; }).join('')+'</span></span>'+
+        '<span>Infection <b>'+OB.RATE[g.rate]+'</b>/turn</span><span class="ob-cures">'+D.map(function(d,i){ return '<span class="ob-cure'+(g.cured[i]?' on':'')+'" style="border-color:'+d.h+'; color:'+d.h+'" title="'+d.n+'">'+(g.cured[i]===2?'✦':g.cured[i]?'✓':'')+'</span>'; }).join('')+'</span><span>Deck <b>'+g.pdeck.length+'</b></span></div>';
+      h += map(g, seat, ctx);
+      h += actionPanel(g, seat, send, ctx);
+      if(seat>=0){
+        var discard = g.phase==='discard' && g.turn===seat;
+        h += '<div class="ob-hand">'+(g.hands[seat].length ? g.hands[seat].map(function(c){ return cardChip(c, discard?'data-disc="'+c+'"':'', discard?'click':''); }).join('') : '<span style="color:var(--paper-dim);font-size:13px">Your hand is empty.</span>')+'</div>';
+      }
+      h += '<div class="ob-mates">'+g.hands.map(function(hh,i){ if(i===seat) return ''; return '<div class="ob-mate"><b>'+esc(ctx.nameOf(i))+'</b> · '+(OB.ROLES.filter(function(x){ return x.id===g.roles[i]; })[0].n)+' · in <b>'+C[g.pos[i]][0]+'</b><br>'+(hh.length ? hh.map(function(c){ return '<span style="color:'+D[C[c][1]].h+'">'+C[c][0]+'</span>'; }).join(', ') : 'no cards')+'</div>'; }).join('')+'</div>';
+      el.innerHTML = h;
+      el.querySelectorAll('.ob-city').forEach(function(n){ n.onclick = function(){ sel = +n.dataset.c; ctx.refresh ? ctx.refresh() : window.__coop.refresh(); }; });
+      var on = function(s, f){ el.querySelectorAll(s).forEach(function(b){ b.onclick = function(){ f(b); }; }); };
+      on('[data-treat]', function(b){ send({t:'treat', color:+b.dataset.treat}); });
+      on('[data-cure]', function(b){ send({t:'cure', color:+b.dataset.cure}); });
+      on('[data-share]', function(b){ send({t:'share', dir:b.dataset.share, with:+b.dataset.w, card:+b.dataset.card}); });
+      on('[data-move]', function(b){ sel = null; send({t:'move', to:+b.dataset.move}); });
+      on('[data-direct]', function(b){ sel = null; send({t:'direct', to:+b.dataset.direct}); });
+      on('[data-charter]', function(b){ sel = null; send({t:'charter', to:+b.dataset.charter}); });
+      on('[data-pass]', function(){ send({t:'pass'}); });
+      on('[data-disc]', function(b){ send({t:'discard', card:+b.dataset.disc}); });
+    }
+  });
+})();
+</script>
+</body>
+</html>

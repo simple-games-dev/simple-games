@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sparkle</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../shared/sg.css">
+<script src="../../shared/boot.js" data-libs="firebase"></script>
+<script src="../../shared/coop.js"></script>
+<script src="logic.js"></script>
+<style>
+  .sp-top{display:flex; gap:14px; flex-wrap:wrap; align-items:center; justify-content:space-between; margin-bottom:14px;}
+  .sp-tokens{display:flex; gap:14px; align-items:center; font-size:13px; color:var(--paper-dim);}
+  .sp-tok{display:inline-flex; gap:3px;} .sp-tok i{width:11px; height:11px; border-radius:50%; background:var(--cyan); box-shadow:0 0 8px var(--cyan);} .sp-tok i.off{background:#26324F; box-shadow:none;}
+  .sp-tok.fuse i{background:var(--danger); box-shadow:0 0 8px var(--danger); border-radius:3px;} .sp-tok.fuse i.off{background:#26324F; box-shadow:none;}
+  .sp-stacks{display:grid; grid-template-columns:repeat(5,1fr); gap:8px; margin-bottom:16px;}
+  .sp-stack{border-radius:12px; padding:10px 4px; text-align:center; background:var(--inset); border:1px solid var(--hair);}
+  .sp-stack .num{font-family:'Space Grotesk',sans-serif; font-size:28px; font-weight:700; line-height:1.1;}
+  .sp-stack .nm{font-size:11px; color:var(--paper-dim);}
+  .sp-hand{display:flex; flex-direction:column; gap:6px; margin-bottom:14px; padding:10px; border-radius:12px; background:var(--raise); border:1px solid var(--hair);}
+  .sp-hand.turn{border-color:var(--accent); box-shadow:0 0 0 1px var(--accent-soft), 0 0 24px -10px var(--accent);}
+  .sp-hand h4{margin:0 0 4px; font-size:13px; font-weight:600; display:flex; gap:8px; align-items:center;} .sp-hand h4 .t{margin-left:auto; font-size:11px; color:var(--accent);}
+  .sp-cards{display:flex; gap:7px; flex-wrap:wrap;}
+  .sp-slot{display:flex; flex-direction:column; align-items:center; gap:4px;}
+  .sp-card{width:52px; height:72px; border-radius:9px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:24px; border:2px solid rgba(255,255,255,.2); position:relative;}
+  .sp-card small{font-size:13px; opacity:.85;}
+  .sp-card.back{background:linear-gradient(145deg,#1a2342,#0e1530); color:#cfd6ee;}
+  .sp-card .know{position:absolute; left:0; right:0; bottom:3px; font-size:10px; font-weight:600; line-height:1; text-align:center;}
+  .sp-mini{display:flex; gap:4px; flex-wrap:wrap; max-width:60px; justify-content:center; min-height:14px; font-size:10px; color:var(--paper-dim);}
+  .sp-slot button{padding:4px 7px; font-size:11px; border-radius:7px;}
+  .sp-clues{display:flex; gap:5px; flex-wrap:wrap; margin-top:4px; align-items:center; font-size:11.5px; color:var(--paper-dim);}
+  .sp-clues button{padding:5px 9px; font-size:12px; min-width:34px;}
+  .sp-last{font-size:13px; color:var(--paper-dim); text-align:center; min-height:20px;}
+  .sp-disc{font-size:12px; color:var(--paper-dim); margin-top:8px; line-height:1.7;}
+  @media (max-width:520px){ .sp-card{width:46px; height:64px; font-size:21px;} }
+</style>
+</head>
+<body>
+<div id="coopRoot"></div>
+<script>
+(function(){
+  var C = SP.COLORS;
+  function pip(i, total){ var h=''; for(var k=0;k<total;k++) h += '<i class="'+(k<i?'':'off')+'"></i>'; return h; }
+  function face(card){
+    var col = C[card.c];
+    return '<div class="sp-card" style="background:'+col.h+'1f; color:'+col.h+'; border-color:'+col.h+'">'+card.r+'<small>'+col.s+'</small></div>';
+  }
+  function knowLine(k){
+    var t = [];
+    if(k.c!==null) t.push(C[k.c].s); else if(k.nc.length) t.push('<span style="opacity:.6">¬'+k.nc.map(function(c){return C[c].s;}).join('')+'</span>');
+    if(k.r!==null) t.push(k.r); else if(k.nr.length) t.push('<span style="opacity:.6">¬'+k.nr.join('')+'</span>');
+    return t.join(' ');
+  }
+  function back(k){
+    var col = k.c!==null ? C[k.c].h : null;
+    return '<div class="sp-card back" style="'+(col?'border-color:'+col+'; color:'+col:'')+'">'+(k.r!==null?k.r:'?')+'<small>'+(k.c!==null?C[k.c].s:'')+'</small></div>';
+  }
+  Coop.register({
+    id:'sparkle', title:'Sparkle', titleHtml:'Spar<span>kle</span>', icon:'🎆', accent:'#F0614F',
+    tagline:'You can see everyone’s cards but your own.',
+    pitch:'Launch five fireworks together. Your teammates see your hand, you don’t — help each other with clues and trust each other’s hints.',
+    rooms:'sparkleRooms', min:2, max:5, localMin:2, localMax:5, hidden:true,
+    rules:'<p>Everyone holds cards they <b>cannot see</b>, but they can see everybody else’s. Together you must play each colour’s cards in order from 1 to 5.</p>'+
+      '<p>On your turn do one thing: <b>play</b> a card (if it is the next in its colour it goes on the firework, otherwise a fuse burns out), <b>discard</b> a card (to win a clue token back), or <b>give a clue</b> (spend a token): tell a teammate every card of one colour or one number in their hand — you must point to at least one card.</p>'+
+      '<p>3 fuses, 8 clue tokens. Completing a 5 gives a token. When the deck runs out everyone gets one last turn. 25 is perfect; 15+ counts as a win. Don’t say anything about card values outside of clues — the chat is for friendly cheering. 😉</p>',
+    init:function(n){ return SP.init(n); },
+    act:function(g, a, seat, n){ return SP.act(g, a, seat, n); },
+    activeSeat:function(g){ return g.turn; },
+    myTurn:function(g, seat){ return g.turn===seat && !g.over; },
+    role:function(g,i){ return g.turn===i && !g.over ? '▶ turn' : (g.hands[i].length+' cards'); },
+    status:function(g, seat){
+      var sc = SP.score(g);
+      return '<b>Score '+sc+'/25</b> · deck '+g.deck.length+'<br>'+(seat<0 ? 'Watching.' : (g.turn===seat ? 'Your turn — <b>play</b>, <b>discard</b> or <b>clue</b>.' : 'Waiting for Player '+(g.turn+1)+'…'))+(g.endLeft!==null?'<br>⚠ Last round!':'');
+    },
+    render:function(el, g, seat, send, ctx){
+      var mine = seat===g.turn && !ctx.over, spectator = seat<0;
+      var h = '<div class="sp-top"><div class="sp-tokens"><span>Clues <span class="sp-tok">'+pip(g.clues,8)+'</span></span><span>Fuses <span class="sp-tok fuse">'+pip(g.fuses,3)+'</span></span></div><div style="font-size:13px;color:var(--paper-dim)">Deck <b style="color:var(--paper)">'+g.deck.length+'</b></div></div>';
+      h += '<div class="sp-stacks">'+C.map(function(c,i){ return '<div class="sp-stack" style="border-color:'+c.h+'55"><div class="num" style="color:'+c.h+'">'+g.played[i]+'</div><div class="nm">'+c.s+' '+c.n+'</div></div>'; }).join('')+'</div>';
+      h += '<div class="sp-last">'+(g.last||'&nbsp;')+'</div>';
+      for(var p=0;p<g.n;p++){
+        var isMe = p===seat, show = !isMe || spectator;
+        h += '<div class="sp-hand'+(g.turn===p&&!ctx.over?' turn':'')+'"><h4><span style="width:10px;height:10px;border-radius:50%;background:'+ctx.colorOf(p)+'"></span>'+SP_esc(ctx.nameOf(p))+(isMe?' (you)':'')+'<span class="t">'+(g.turn===p&&!ctx.over?'▶ playing':'')+'</span></h4><div class="sp-cards">';
+        g.hands[p].forEach(function(card, i){
+          var k = g.know[p][i];
+          if(isMe && !spectator){
+            h += '<div class="sp-slot">'+back(k)+'<div class="sp-mini">'+((k.nc.length||k.nr.length)&&k.c===null||(k.r===null&&k.nr.length)?knowLine({c:k.c,r:k.r,nc:k.nc,nr:k.nr}):'')+'</div>'+
+              (mine ? '<button data-play="'+i+'">Play</button><button class="secondary" data-disc="'+i+'"'+(g.clues>=8?' disabled':'')+'>Toss</button>' : '')+'</div>';
+          } else {
+            h += '<div class="sp-slot">'+face(card)+'<div class="sp-mini">'+knowLine(k)+'</div></div>';
+          }
+        });
+        h += '</div>';
+        if(!isMe && mine && g.clues>0){
+          var colors = {}, ranks = {}; g.hands[p].forEach(function(c){ colors[c.c]=1; ranks[c.r]=1; });
+          h += '<div class="sp-clues">Clue: '+Object.keys(colors).map(function(c){ return '<button class="secondary" data-cp="'+p+'" data-ck="color" data-cv="'+c+'" style="color:'+C[c].h+'">'+C[c].s+'</button>'; }).join('')+
+            Object.keys(ranks).sort().map(function(r){ return '<button class="secondary" data-cp="'+p+'" data-ck="rank" data-cv="'+r+'">'+r+'</button>'; }).join('')+'</div>';
+        }
+        h += '</div>';
+      }
+      var d = {}; g.discard.forEach(function(c){ d[c.c] = (d[c.c]||[]).concat([c.r]); });
+      h += '<div class="sp-disc"><b>Discards</b> · '+(g.discard.length ? C.map(function(c,i){ return d[i] ? '<span style="color:'+c.h+'">'+c.s+' '+d[i].sort().join(' ')+'</span>' : ''; }).filter(Boolean).join(' &nbsp; ') : 'none yet')+'</div>';
+      el.innerHTML = h;
+      el.querySelectorAll('[data-play]').forEach(function(b){ b.onclick = function(){ send({t:'play', i:+b.dataset.play}); }; });
+      el.querySelectorAll('[data-disc]').forEach(function(b){ b.onclick = function(){ send({t:'discard', i:+b.dataset.disc}); }; });
+      el.querySelectorAll('[data-cp]').forEach(function(b){ b.onclick = function(){ send({t:'clue', to:+b.dataset.cp, kind:b.dataset.ck, v:+b.dataset.cv}); }; });
+    }
+  });
+  function SP_esc(s){ return SG.escapeHtml(s); }
+})();
+</script>
+</body>
+</html>

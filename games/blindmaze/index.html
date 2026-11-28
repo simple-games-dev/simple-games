@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Blind Maze</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../shared/sg.css">
+<script src="../../shared/boot.js" data-libs="firebase"></script>
+<script src="../../shared/coop.js"></script>
+<script src="logic.js"></script>
+<style>
+  .bm-hud{display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:8px; font-size:13px; color:var(--paper-dim);}
+  .bm-hud b{color:var(--paper); font-family:'Space Grotesk',sans-serif;}
+  .bm-role{display:inline-block; padding:4px 11px; border-radius:999px; font-weight:600; font-size:12.5px; border:1px solid var(--hair); background:var(--inset);}
+  .bm-svg{width:100%; max-width:560px; display:block; margin:0 auto; border-radius:12px; background:#080C18; touch-action:manipulation;}
+  .bm-note{font-size:13px; color:var(--paper-dim); line-height:1.55; margin:12px 2px 0; text-align:center;}
+  .bm-pad{display:grid; grid-template-columns:repeat(3,56px); grid-template-rows:repeat(2,52px); gap:6px; justify-content:center; margin:14px auto 0;}
+  .bm-pad button{padding:0; font-size:20px;} .bm-pad .up{grid-column:2;} .bm-pad .left{grid-column:1; grid-row:2;} .bm-pad .down{grid-column:2; grid-row:2;} .bm-pad .right{grid-column:3; grid-row:2;}
+  .bm-lives{letter-spacing:2px;}
+</style>
+</head>
+<body>
+<div id="coopRoot"></div>
+<script>
+(function(){
+  var cur = {send:null, over:true, walker:false}, bound = false;
+  var ROLE = {walker:['🧭 Walker','#F5B342','You walk, but see only nearby walls — and you can’t see the traps or the exit.'],
+              guide:['🔦 Guide','#46D2F0','You see the traps and the exit, but not the walls. Tell the walker where to go and what to avoid.'],
+              carto:['🗺 Cartographer','#B98CE0','You see every wall, but not the traps or the exit. Help the walker find a way.']};
+  function kind(g, seat){ var r = BM.roles(g); return seat===r.walker ? 'walker' : seat===r.guide ? 'guide' : r.carto.indexOf(seat)>=0 ? 'carto' : 'all'; }
+  function draw(g, k){
+    var L = g.maze, n = L.n, M = 0.9, size = n+M, h = '<svg class="bm-svg" viewBox="'+(-M)+' '+(-M)+' '+(n+M+0.1)+' '+(n+M+0.1)+'">';
+    var showWalls = k==='walker' || k==='carto' || k==='all';
+    var fog = k==='walker';
+    // labels
+    for(var i=0;i<n;i++){
+      h += '<text x="'+(i+.5)+'" y="-.3" font-size=".45" fill="#9AA3BD" text-anchor="middle">'+String.fromCharCode(65+i)+'</text><text x="-.4" y="'+(i+.68)+'" font-size=".45" fill="#9AA3BD" text-anchor="middle">'+(i+1)+'</text>';
+    }
+    for(var y=0;y<n;y++) for(var x=0;x<n;x++){
+      var idx = y*n+x, vis = !fog || g.seen.indexOf(idx)>=0;
+      h += '<rect x="'+x+'" y="'+y+'" width="1" height="1" fill="'+(vis?'#121b33':'#05070d')+'" stroke="'+(showWalls?'none':'#1c2644')+'" stroke-width=".03"/>';
+    }
+    if(showWalls) for(y=0;y<n;y++) for(x=0;x<n;x++){
+      idx = y*n+x; if(fog && g.seen.indexOf(idx)<0) continue;
+      var c = L.cells[y][x], ln = function(x1,y1,x2,y2){ return '<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="#7B86FF" stroke-width=".11" stroke-linecap="round"/>'; };
+      if(!(c&BM.N)) h += ln(x,y,x+1,y); if(!(c&BM.S)) h += ln(x,y+1,x+1,y+1);
+      if(!(c&BM.W)) h += ln(x,y,x,y+1); if(!(c&BM.E)) h += ln(x+1,y,x+1,y+1);
+    }
+    h += '<text x="'+.5+'" y="'+.72+'" font-size=".5" text-anchor="middle" opacity=".7">▶</text>';
+    if(k==='guide' || k==='all'){
+      L.traps.forEach(function(t){ h += '<text x="'+(t[0]+.5)+'" y="'+(t[1]+.72)+'" font-size=".55" text-anchor="middle">💣</text>'; });
+      h += '<text x="'+(n-.5)+'" y="'+(n-.28)+'" font-size=".6" text-anchor="middle">🏁</text>';
+    } else {
+      g.found.forEach(function(t){ h += '<text x="'+(t[0]+.5)+'" y="'+(t[1]+.7)+'" font-size=".5" text-anchor="middle">💥</text>'; });
+    }
+    h += '<circle cx="'+(g.pos[0]+.5)+'" cy="'+(g.pos[1]+.5)+'" r=".3" fill="#F5B342" stroke="#fff" stroke-width=".06"/><text x="'+(g.pos[0]+.5)+'" y="'+(g.pos[1]+.66)+'" font-size=".38" text-anchor="middle">🧭</text>';
+    return h + '</svg>';
+  }
+  Coop.register({
+    id:'blindmaze', title:'Blind Maze', titleHtml:'Blind <span>Maze</span>', icon:'🧭', accent:'#B98CE0',
+    tagline:'One walks, one knows the traps, one has the map.',
+    pitch:'Three views of the same maze. The walker is in the fog, the guide sees the traps and the exit, the cartographer sees the walls. Talk it through and get out.',
+    rooms:'blindMazeRooms', min:2, max:4, localMin:2, localMax:2, switchLabel:'Viewing as', seatLabel:function(i){ return 'Player '+(i+1); },
+    rules:'<p>Everyone looks at the <b>same maze</b> from a different angle. The <b>walker</b> moves (arrow keys / pad) but only sees the walls close by. The <b>guide</b> sees every trap 💣 and the exit 🏁, but not the walls. The <b>cartographer</b> (with 3–4 players) sees all the walls.</p>'+
+      '<p>Step on a trap and the walker goes back to the start and the team loses a life. Reach 🏁 to clear a level. Roles rotate each level. Coordinates (A1, C4…) are shown on every board so you can talk about places.</p>'+
+      '<p>Same device with 2 players: take turns holding the device, or switch the view with the buttons (no peeking!).</p>',
+    init:function(n, o){ return BM.init(n, o); },
+    act:function(g, a, seat){ return BM.act(g, a, seat); },
+    myTurn:function(g, seat){ return false; },
+    role:function(g,i){ var k = kind(g,i); return k==='all' ? '' : ROLE[k][0]; },
+    status:function(g, seat){
+      var k = kind(g, seat), rl = BM.roles(g);
+      return '<b>Level '+(g.level+1)+' of '+BM.SIZES.length+'</b> · lives <span class="bm-lives">'+'❤'.repeat(Math.max(0,g.lives))+'</span><br>'+(k==='all' ? 'You are watching.' : ROLE[k][2])+'<br>Walker is at <b>'+BM.label(g.pos)+'</b>.';
+    },
+    render:function(el, g, seat, send, ctx){
+      var k = kind(g, seat), rl = BM.roles(g); cur = {send:send, over:ctx.over, walker:k==='walker'};
+      var rolePill = k==='all' ? 'Spectator' : '<span class="bm-role" style="color:'+ROLE[k][1]+'; border-color:'+ROLE[k][1]+'">'+ROLE[k][0]+'</span>';
+      var h = '<div class="bm-hud"><span>Level <b>'+(g.level+1)+'/'+BM.SIZES.length+'</b> · '+rolePill+'</span><span>Lives <b class="bm-lives">'+'❤'.repeat(Math.max(0,g.lives))+'</b> · Steps <b>'+g.steps+'</b></span></div>';
+      h += draw(g, k);
+      h += '<p class="bm-note">'+(k==='walker' ? 'Walker: '+SG.escapeHtml(ctx.nameOf(rl.walker))+' (you) — at <b>'+BM.label(g.pos)+'</b>. Ask your guide what to avoid!' : 'The walker is <b>'+SG.escapeHtml(ctx.nameOf(rl.walker))+'</b>, now at <b>'+BM.label(g.pos)+'</b>.')+'</p>';
+      if(k==='walker' && !ctx.over) h += '<div class="bm-pad">'+['up','left','down','right'].map(function(d){ return '<button class="secondary '+d+'" data-d="'+d+'" aria-label="'+d+'">'+({up:'↑',down:'↓',left:'←',right:'→'})[d]+'</button>'; }).join('')+'</div>';
+      el.innerHTML = h;
+      el.querySelectorAll('[data-d]').forEach(function(b){ b.onclick = function(){ send({t:'move', dir:b.dataset.d}); }; });
+      if(!bound){ bound = true;
+        document.addEventListener('keydown', function(e){
+          if(!cur.send || cur.over || !cur.walker || /INPUT|TEXTAREA/.test((e.target||{}).tagName||'')) return;
+          var m = {ArrowUp:'up',ArrowDown:'down',ArrowLeft:'left',ArrowRight:'right',w:'up',s:'down',a:'left',d:'right'}[e.key];
+          if(m){ e.preventDefault(); cur.send({t:'move', dir:m}); }
+        });
+      }
+    }
+  });
+})();
+</script>
+</body>
+</html>

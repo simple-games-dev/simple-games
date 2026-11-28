@@ -96,6 +96,23 @@ The same Easy / Normal / Hard picker exists in **Hedgerow**, **Ghosts** and **As
 
 In Ghosts the computer arranges and plays its own ghosts, but it never reads yours; it only sees what a human opponent would see.
 
+## Co-op games
+
+Six cooperative games share one base, `shared/coop.js` (home screen, same-device play, online rooms, seats, chat, reactions, game log, rematch, fireworks). Each game is just its rules plus a renderer:
+
+| Game | Players | Collection | Idea |
+|---|---|---|---|
+| Fire & Water (`games/firewater`) | 2 | `fireWaterRooms` | Two heroes, hazards, buttons and doors; six rooms |
+| Sparkle (`games/sparkle`) | 2–5 | `sparkleRooms` | Hanabi-style: you see everyone's cards but your own |
+| Lockdown (`games/lockdown`) | 2–4 | `lockdownRooms` | Escape room: operator sees the lock, readers hold the manual |
+| Blind Maze (`games/blindmaze`) | 2–4 | `blindMazeRooms` | Walker in the fog, guide sees traps, cartographer sees walls |
+| Mindmeld (`games/mindmeld`) | 2–5 | `mindmeldRooms` | Play numbered cards in order without talking |
+| Outbreak (`games/outbreak`) | 2–4 | `outbreakRooms` | Pandemic-style: cure four diseases before the world falls |
+
+Every game's rules live in its `logic.js` (plain JS, runs in Node too), so they can be tested without a browser. **Firestore rules:** add the six collection names above next to the existing room collections in `firestore.rules` (copy the block of any existing game and change the name), then publish the rules.
+
+Hidden information (Sparkle hands, Lockdown answers, Mindmeld cards) is hidden by the interface only, not by the database: anyone who opens the browser's developer tools could peek. That is fine for friendly games, but not for anything competitive.
+
 ## Putting it on GitHub Pages
 
 1. Make sure `shared/firebase-config.js` has your own keys (it is not part of updates from this assistant).

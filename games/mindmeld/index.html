@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mindmeld</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../shared/sg.css">
+<script src="../../shared/boot.js" data-libs="firebase"></script>
+<script src="../../shared/coop.js"></script>
+<script src="logic.js"></script>
+<style>
+  .mm-top{display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:12px; font-size:14px;}
+  .mm-top b{font-family:'Space Grotesk',sans-serif;} .mm-res{display:flex; gap:16px; color:var(--paper-dim);} .mm-res span b{color:var(--paper); font-size:17px;}
+  .mm-pile{height:170px; border-radius:16px; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:6px; background:radial-gradient(ellipse at center,#1a2342,#0b1022); border:1px solid var(--hair); margin-bottom:16px; position:relative;}
+  .mm-big{font-family:'Space Grotesk',sans-serif; font-size:84px; font-weight:700; line-height:1; color:var(--accent); text-shadow:0 0 30px var(--accent-soft);}
+  .mm-big.miss{color:var(--danger);} .mm-sub{color:var(--paper-dim); font-size:13px;}
+  .mm-count{font-family:'Space Grotesk',sans-serif; font-size:64px; color:var(--cyan);}
+  .mm-hand{display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-bottom:14px; min-height:96px;}
+  .mm-card{width:68px; height:96px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-family:'Space Grotesk',sans-serif; font-size:30px; font-weight:700; background:linear-gradient(160deg,#2b3a66,#161f3d); border:2px solid #6A7FC0;}
+  .mm-card.low{border-color:var(--accent); box-shadow:0 0 22px -6px var(--accent);}
+  .mm-actions{display:flex; gap:10px; flex-wrap:wrap; justify-content:center;} .mm-actions button{flex:1 1 150px; padding:13px 10px; font-size:15px;}
+  .mm-others{display:flex; gap:8px; flex-wrap:wrap; justify-content:center; margin-bottom:14px;}
+  .mm-o{padding:6px 12px; border-radius:999px; font-size:12.5px; background:var(--inset); border:1px solid var(--hair); color:var(--paper-dim);} .mm-o.ok{border-color:var(--good); color:var(--good);} .mm-o b{color:var(--paper);}
+  .mm-hush{font-size:12.5px; color:var(--paper-dim); text-align:center; margin-top:10px;}
+</style>
+</head>
+<body>
+<div id="coopRoot"></div>
+<script>
+(function(){
+  var timer = null;
+  Coop.register({
+    id:'mindmeld', title:'Mindmeld', titleHtml:'Mind<span>meld</span>', icon:'🧠', accent:'#46D2F0',
+    tagline:'No talking. Just feel when your card is next.',
+    pitch:'Everyone holds numbered cards from 1 to 100. Play them in ascending order as a team — with no signals, no clues, no words.',
+    rooms:'mindmeldRooms', min:2, max:5, localMin:2, localMax:2,
+    rules:'<p>Each level every player gets that many cards (level 3 = 3 cards each) numbered 1–100. Without any talking, the team must play <b>all cards in ascending order</b>. Press <b>Play my lowest</b> when you feel it is the right moment — any player can go at any time.</p>'+
+      '<p>If someone plays a card while another player still holds a <b>lower</b> card, the team loses a life ❤ and those lower cards are revealed and discarded. Out of lives = game over.</p>'+
+      '<p>A <b>star</b> ⭐ (everyone has to agree) makes every player discard their lowest card face-up. Rewards: +1 ❤ after levels 2, 5, 8 and +1 ⭐ after levels 3, 6, 9.</p>'+
+      '<p>Don’t use the chat during a level — it is for before and after. Same device: two players share one screen, playing with the “Viewing as” buttons — hide your cards from each other!</p>',
+    init:function(n, o){ return MM.init(n, o); },
+    act:function(g, a, seat){ return MM.act(g, a, seat); },
+    myTurn:function(g, seat){ return false; },
+    role:function(g,i){ return g.ready[i] && g.phase==='ready' ? '✓ ready' : g.hands[i].length+' card'+(g.hands[i].length===1?'':'s'); },
+    status:function(g, seat){
+      return '<b>Level '+g.level+' of '+g.maxLevel+'</b> · ❤ '+g.lives+' · ⭐ '+g.stars+'<br>'+(g.phase==='ready' ? 'Press <b>Ready</b> when you have looked at your cards.' : 'Silent time. Play your lowest card when it feels right.');
+    },
+    render:function(el, g, seat, send, ctx){
+      clearTimeout(timer);
+      var mine = seat>=0 ? g.hands[seat] : [], cd = g.phase==='play' ? Math.ceil((g.startAt - Date.now())/1000) : 0;
+      var h = '<div class="mm-top"><div><b>Level '+g.level+'</b> / '+g.maxLevel+'</div><div class="mm-res"><span>❤ <b>'+g.lives+'</b></span><span>⭐ <b>'+g.stars+'</b></span></div></div>';
+      h += '<div class="mm-pile">';
+      if(g.phase==='ready') h += '<div class="mm-sub">Everyone press ready, then stay silent</div><div style="font-size:42px">🤫</div>';
+      else if(cd>0) h += '<div class="mm-count">'+cd+'</div>';
+      else if(g.last && g.last.c!==undefined) h += '<div class="mm-big'+(g.last.miss?' miss':'')+'">'+g.last.c+'</div><div class="mm-sub">'+SG.escapeHtml(ctx.nameOf(g.last.by))+(g.last.miss?' — too late! Lower cards: '+g.last.miss.map(function(d){ return d.c; }).join(', '):'')+'</div>';
+      else h += '<div class="mm-sub">'+(g.last && g.last.star ? '⭐ Star used' : 'The pile is empty')+'</div><div style="font-size:42px">🧠</div>';
+      h += '</div>';
+      h += '<div class="mm-others">'+g.hands.map(function(hh,i){ return '<span class="mm-o'+(g.phase==='ready'&&g.ready[i]?' ok':'')+(g.starVotes[i]?' ok':'')+'">'+SG.escapeHtml(ctx.nameOf(i))+(i===seat?' (you)':'')+' · <b>'+hh.length+'</b>'+(g.starVotes[i]?' ⭐':'')+'</span>'; }).join('')+'</div>';
+      if(seat>=0){
+        h += '<div class="mm-hand">'+(mine.length ? mine.map(function(c,i){ return '<div class="mm-card'+(i===0?' low':'')+'">'+c+'</div>'; }).join('') : '<div class="mm-sub" style="align-self:center">No cards left — wait for the others.</div>')+'</div>';
+        if(!ctx.over){
+          h += '<div class="mm-actions">'+(g.phase==='ready'
+            ? '<button id="mmReady"'+(g.ready[seat]?' disabled':'')+'>'+(g.ready[seat]?'Waiting for the others…':'I’m ready')+'</button>'
+            : '<button id="mmPlay"'+(!mine.length||cd>0?' disabled':'')+'>Play my lowest</button><button class="secondary" id="mmStar"'+(g.stars<=0?' disabled':'')+'>⭐ '+(g.starVotes[seat]?'Withdraw':'Use a star')+'</button>')+'</div>';
+        }
+      } else h += '<p class="mm-hush">You are watching.</p>';
+      h += '<p class="mm-hush">🤫 No talking, pointing or hints while cards are in play.</p>';
+      el.innerHTML = h;
+      var q = function(id){ return el.querySelector(id); };
+      if(q('#mmReady')) q('#mmReady').onclick = function(){ send({t:'ready'}); };
+      if(q('#mmPlay')) q('#mmPlay').onclick = function(){ send({t:'play'}); };
+      if(q('#mmStar')) q('#mmStar').onclick = function(){ send({t:'star'}); };
+      if(g.phase==='play' && cd>0 && window.__coop) timer = setTimeout(function(){ window.__coop.refresh(); }, Math.max(60, g.startAt - Date.now() + 40));
+    }
+  });
+})();
+</script>
+</body>
+</html>

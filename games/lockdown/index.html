@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Lockdown</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../shared/sg.css">
+<script src="../../shared/boot.js" data-libs="firebase"></script>
+<script src="../../shared/coop.js"></script>
+<script src="logic.js"></script>
+<style>
+  .ld-head{display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:6px;}
+  .ld-head h3{margin:0; font-family:'Space Grotesk',sans-serif; font-size:20px;}
+  .ld-role{font-size:12px; padding:4px 10px; border-radius:999px; font-weight:600; border:1px solid var(--hair); background:var(--inset);}
+  .ld-role.op{color:var(--accent); border-color:var(--accent);} .ld-role.rd{color:var(--cyan); border-color:var(--cyan);}
+  .ld-blurb{color:var(--paper-dim); font-size:13.5px; line-height:1.55; margin:0 0 14px;}
+  .ld-panel{border-radius:14px; padding:18px; background:var(--inset); border:1px solid var(--hair);}
+  .ld-syms{display:flex; gap:10px; justify-content:center; margin-bottom:16px;}
+  .ld-sym{width:60px; height:68px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:34px; background:#10172b; border:2px solid var(--violet); box-shadow:0 0 18px -6px var(--violet);}
+  .ld-entry{display:flex; gap:8px; justify-content:center; margin-bottom:12px; min-height:50px;}
+  .ld-digit{width:42px; height:50px; border-radius:9px; border:2px dashed #3a466e; display:flex; align-items:center; justify-content:center; font-size:26px; font-family:'Space Grotesk',sans-serif; font-weight:700;}
+  .ld-digit.on{border-style:solid; border-color:var(--accent);}
+  .ld-keys{display:grid; grid-template-columns:repeat(5,1fr); gap:7px; max-width:330px; margin:0 auto;}
+  .ld-keys button{padding:11px 0; font-size:17px;}
+  .ld-go{display:flex; gap:8px; justify-content:center; margin-top:12px;}
+  .ld-wires{display:flex; flex-direction:column; gap:12px; margin:6px 0 4px;}
+  .ld-wire{display:flex; align-items:center; gap:12px; background:none !important; box-shadow:none !important; padding:4px 6px !important; border-radius:10px; color:var(--paper-dim);}
+  .ld-wire span.line{flex:1; height:10px; border-radius:6px;} .ld-wire:hover{filter:brightness(1.2); transform:none !important;}
+  .ld-led{display:flex; align-items:center; gap:10px; justify-content:center; margin-bottom:14px; font-size:14px;} .ld-led i{width:22px; height:22px; border-radius:50%; box-shadow:0 0 16px currentColor;}
+  .ld-seq{display:flex; gap:9px; justify-content:center; margin-bottom:6px;} .ld-seq i{width:44px; height:44px; border-radius:50%; box-shadow:0 0 14px currentColor; display:block;}
+  .ld-btns{display:grid; grid-template-columns:repeat(3,1fr); gap:8px; max-width:300px; margin:12px auto 0;} .ld-btns button{font-size:30px; padding:12px 0;}
+  .ld-dials{display:flex; gap:14px; justify-content:center; margin-bottom:18px;}
+  .ld-dial{width:84px; height:84px; border-radius:50%; border:3px solid var(--cyan); display:flex; flex-direction:column; align-items:center; justify-content:center; font-family:'Space Grotesk',sans-serif; font-size:34px; font-weight:700; box-shadow:0 0 20px -6px var(--cyan);} .ld-dial small{font-size:10px; font-weight:500; color:var(--paper-dim);}
+  .ld-manual{list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:8px;}
+  .ld-manual li{padding:11px 14px; border-radius:10px; background:#10172b; border-left:3px solid var(--cyan); font-size:15px; line-height:1.5;}
+  .ld-manual li.big{font-size:22px; letter-spacing:.04em;}
+  .ld-hint{font-size:12.5px; color:var(--paper-dim); margin-top:12px; text-align:center;}
+  .ld-dots{display:flex; gap:6px; justify-content:center; margin-bottom:14px;} .ld-dots i{width:34px; height:6px; border-radius:3px; background:#26324F;} .ld-dots i.done{background:var(--good);} .ld-dots i.now{background:var(--accent);}
+</style>
+</head>
+<body>
+<div id="coopRoot"></div>
+<script>
+(function(){
+  var buf = '', bufKey = '';
+  var HEX = {red:'#F0614F', blue:'#5DADE2', green:'#3FD9A0', yellow:'#F5B342'};
+  function opView(g, r, send){
+    var f = r.front, h = '<div class="ld-panel">';
+    if(r.type==='cipher'){
+      h += '<div class="ld-syms">'+f.symbols.map(function(s){ return '<div class="ld-sym">'+s+'</div>'; }).join('')+'</div>'+entry(4)+keypad();
+    } else if(r.type==='wires'){
+      h += '<div class="ld-led"><i style="background:'+HEX[f.led]+'; color:'+HEX[f.led]+'"></i> LED is <b>'+f.led.toUpperCase()+'</b></div><div class="ld-wires">'+
+        f.wires.map(function(c,i){ return '<button class="ld-wire" data-cut="'+(i+1)+'"><b style="width:20px">#'+(i+1)+'</b><span class="line" style="background:'+HEX[c]+'"></span><span style="width:60px;text-align:right">✂ cut</span></button>'; }).join('')+'</div><p class="ld-hint">Tap the wire to cut. Only one cut — choose carefully.</p>';
+    } else if(r.type==='simon'){
+      h += '<div class="ld-seq">'+f.seq.map(function(c){ return '<i style="background:'+HEX[c]+'; color:'+HEX[c]+'"></i>'; }).join('')+'</div><p class="ld-hint" style="margin-top:0">The lights flash in this order.</p>'+entry(4)+
+        '<div class="ld-btns">'+f.buttons.map(function(s){ return '<button class="secondary" data-sym="'+s+'">'+s+'</button>'; }).join('')+'</div><div class="ld-go"><button class="secondary" data-clear>Clear</button><button data-enter>Enter</button></div>';
+    } else if(r.type==='dials'){
+      h += '<div class="ld-dials">'+f.dials.map(function(d,i){ return '<div class="ld-dial">'+d+'<small>dial '+(i+1)+'</small></div>'; }).join('')+'</div>'+entry(3)+keypad();
+    }
+    return h + '</div>';
+  }
+  function entry(n){ var d = ''; for(var i=0;i<n;i++) d += '<div class="ld-digit'+([...buf][i]?' on':'')+'">'+([...buf][i]||'')+'</div>'; return '<div class="ld-entry">'+d+'</div>'; }
+  function keypad(){
+    var k = ''; for(var i=0;i<10;i++) k += '<button class="secondary" data-key="'+i+'">'+i+'</button>';
+    return '<div class="ld-keys">'+k+'</div><div class="ld-go"><button class="secondary" data-clear>Clear</button><button data-enter>Enter</button></div>';
+  }
+  Coop.register({
+    id:'lockdown', title:'Lockdown', titleHtml:'Lock<span>down</span>', icon:'🔐', accent:'#8B7CFF',
+    tagline:'Nobody sees the whole puzzle. Talk fast.',
+    pitch:'Escape a series of locked rooms before the clock runs out. One of you sees the lock, the others hold the manual. Describe, decode, enter the code.',
+    rooms:'lockdownRooms', min:2, max:4, localMin:2, localMax:3, hidden:true,
+    options:[{key:'time', label:'Time limit', choices:[[480,'8 min'],[720,'12 min'],[1200,'20 min']], def:720},
+             {key:'rooms', label:'Rooms', choices:[[3,'3 rooms'],[4,'4 rooms']], def:4}],
+    rules:'<p>Each room has one <b>operator</b> who sees the lock but not the instructions, and <b>readers</b> who hold the manual but cannot see the lock. Talk (voice call or chat) until the operator knows the code, then enter it.</p>'+
+      '<p>With 3–4 players the manual is split between the readers, so everybody has to contribute. The operator changes every room.</p>'+
+      '<p>A wrong code costs <b>20 seconds</b>. Open all the locks before time runs out to escape. Same-device play: pass the device around to look at the manual or the lock.</p>',
+    init:function(n, o){ return LD.init(n, o); },
+    act:function(g, a, seat){ return LD.act(g, a, seat); },
+    activeSeat:function(g){ return LD.operator(g); },
+    deadline:function(g){ return g.over ? null : g.deadline; },
+    myTurn:function(g, seat){ return false; },
+    role:function(g,i){ return g.over ? '' : (LD.operator(g)===i ? '🎛 operator' : '📖 reader'); },
+    status:function(g, seat){
+      var r = g.rooms[Math.min(g.room,g.rooms.length-1)], op = LD.operator(g);
+      return '<b>Room '+(g.room+1)+'/'+g.rooms.length+' — '+r.title+'</b><br>'+(seat<0 ? 'Watching.' : seat===op ? 'You are the <b>operator</b>. Describe what you see; ask the readers what to do.' : 'You are a <b>reader</b>. Listen to the operator and use your manual page.');
+    },
+    render:function(el, g, seat, send, ctx){
+      var r = g.rooms[Math.min(g.room,g.rooms.length-1)], op = LD.operator(g), isOp = seat===op;
+      var key = ctx.nameOf(0)+':'+g.room+':'+g.rooms.length+':'+g.strikes;
+      if(bufKey!==key){ bufKey = key; buf = ''; }
+      var dots = '<div class="ld-dots">'+g.rooms.map(function(_,i){ return '<i class="'+(i<g.room?'done':i===g.room?'now':'')+'"></i>'; }).join('')+'</div>';
+      var h = dots+'<div class="ld-head"><h3>'+r.title+'</h3><span class="ld-role '+(isOp?'op':'rd')+'">'+(seat<0?'spectator':isOp?'🎛 Operator — you see the lock':'📖 Reader — you hold the manual')+'</span></div><p class="ld-blurb">'+r.blurb+'</p>';
+      if(isOp && !ctx.over) h += opView(g, r, send);
+      else if(!ctx.over){
+        var page = LD.pageFor(g, seat);
+        if(page){
+          h += '<div class="ld-panel"><ul class="ld-manual">'+page.map(function(t){ return '<li'+(r.type==='cipher'||r.type==='simon'?' class="big"':'')+'>'+SG.escapeHtml(t)+'</li>'; }).join('')+'</ul>'+
+            (ctx.n>2 ? '<p class="ld-hint">This is <b>your page</b> only — the other readers hold the rest.</p>' : '')+'</div>';
+        } else h += '<div class="ld-panel"><p class="ld-hint">Waiting…</p></div>';
+        h += '<p class="ld-hint">The operator is <b>'+SG.escapeHtml(ctx.nameOf(op))+'</b>.</p>';
+      }
+      el.innerHTML = h;
+      var max = r.type==='dials' ? 3 : 4;
+      el.querySelectorAll('[data-key]').forEach(function(b){ b.onclick = function(){ if([...buf].length<max){ buf += b.dataset.key; redraw(); } }; });
+      el.querySelectorAll('[data-sym]').forEach(function(b){ b.onclick = function(){ if([...buf].length<max){ buf += b.dataset.sym; redraw(); } }; });
+      el.querySelectorAll('[data-clear]').forEach(function(b){ b.onclick = function(){ buf = ''; redraw(); }; });
+      el.querySelectorAll('[data-enter]').forEach(function(b){ b.onclick = function(){ if([...buf].length===max){ var a = buf; buf = ''; send({t:'submit', ans:a}); } else ctx.toast('Fill all '+max+' places first.'); }; });
+      el.querySelectorAll('[data-cut]').forEach(function(b){ b.onclick = function(){ send({t:'submit', ans:b.dataset.cut}); }; });
+      function redraw(){ el.querySelectorAll('.ld-entry').forEach(function(e){ var n = e.children.length, d = [...buf]; for(var i=0;i<n;i++){ e.children[i].textContent = d[i]||''; e.children[i].classList.toggle('on', !!d[i]); } }); }
+    }
+  });
+})();
+</script>
+</body>
+</html>
