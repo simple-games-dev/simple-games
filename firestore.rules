@@ -25,13 +25,13 @@ service cloud.firestore {
 
     // ---- game rooms ----
     match /{col}/{room} {
-      allow get: if col in ['ascentRooms','tempoRooms','colonistRooms','ghostRooms','hedgeRooms','merchantRooms'];
+      allow get: if col in ['ascentRooms','tempoRooms','colonistRooms','ghostRooms','hedgeRooms','merchantRooms','fireWaterRooms','sparkleRooms','lockdownRooms','blindMazeRooms','mindmeldRooms','outbreakRooms'];
       // used by the opportunistic sweep: where('expireAt','<',now).limit(20)
-      allow list: if col in ['ascentRooms','tempoRooms','colonistRooms','ghostRooms','hedgeRooms','merchantRooms']
+      allow list: if col in ['ascentRooms','tempoRooms','colonistRooms','ghostRooms','hedgeRooms','merchantRooms','fireWaterRooms','sparkleRooms','lockdownRooms','blindMazeRooms','mindmeldRooms','outbreakRooms']
                   && request.query.limit <= 20;
-      allow create, update: if col in ['ascentRooms','tempoRooms','colonistRooms','ghostRooms','hedgeRooms','merchantRooms']
+      allow create, update: if col in ['ascentRooms','tempoRooms','colonistRooms','ghostRooms','hedgeRooms','merchantRooms','fireWaterRooms','sparkleRooms','lockdownRooms','blindMazeRooms','mindmeldRooms','outbreakRooms']
                             && validExpiry() && sane();
-      allow delete: if col in ['ascentRooms','tempoRooms','colonistRooms','ghostRooms','hedgeRooms','merchantRooms']
+      allow delete: if col in ['ascentRooms','tempoRooms','colonistRooms','ghostRooms','hedgeRooms','merchantRooms','fireWaterRooms','sparkleRooms','lockdownRooms','blindMazeRooms','mindmeldRooms','outbreakRooms']
                     && expired();
     }
 
